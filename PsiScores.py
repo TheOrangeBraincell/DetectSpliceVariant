@@ -179,8 +179,8 @@ def PSI_for_Gene(gene, events, sample):
                     psi_scores.append(i)
             elif AS=="CE":
                 PSI=PSI_CE(sample, event, gene)
-                if PSI==1:
-                    CE_PSI[sample].append(events[AS][event])
+                if PSI=="1.0":
+                    CE_PSI[sample].append(event)
                 psi_scores.append(PSI)
             else:
                 PSI=PSI_IR(sample, event, gene)
@@ -468,8 +468,12 @@ def PSI_AA(gene, sample, event):
     
     #Now calculate PSI for all starts with the counts.
     psi=[]
+    #give event group a number for AA_counts
+    n=len(AA_counts[sample].keys())+1
+    AA_counts[sample][n]=dict()
     for s in starts:
         start_number=starts.index(s)
+        AA_counts[sample][n][s]=spliced_counters[start_number]
         if strand=="+":
             if start_number!=0:
                 total_reads=difference_counters[start_number-1]+spliced_counters[start_number]+sum([x for i,x in enumerate(difference_counters) if i!=(start_number-1)])+sum([x for i,x in enumerate(spliced_counters) if i!=(start_number)]) 
@@ -532,7 +536,9 @@ def PSI_AD(gene, sample, event):
     #Get all starts
     stops=[]
     for i in event:
+        #print(event, i)
         stops.append(int(i[2]))
+        
         
     #Sort starts by coordinate.
     stops=sorted(stops)
@@ -645,8 +651,12 @@ def PSI_AD(gene, sample, event):
     
     #Now calculate PSI for all starts with the counts.
     psi=[]
+    #give event group a number for AD_counts
+    n=len(AD_counts[sample].keys())+1
+    AD_counts[sample][n]=dict()
     for s in stops:
         stop_number=stops.index(s)
+        AD_counts[sample][n][s]=spliced_counters[stop_number]
         if strand=="+":
             if stop_number!=0:
                 total_reads=difference_counters[stop_number-1]+spliced_counters[stop_number]+sum([x for i,x in enumerate(difference_counters) if i!=(stop_number-1)])+sum([x for i,x in enumerate(spliced_counters) if i!=(stop_number)]) 
@@ -725,215 +735,221 @@ def PSI_IR(sample, entry, gene):
     #Extract start and stop
     for entry in CE_PSI[sample]:
         #The dictionary contains only the CE that have PSI 1 
-        CE_start=int(entry.split("_")[1])
-        CE_stop=int(entry.split("_")[2])
+        CE_start=int(entry[2])
+        CE_stop=int(entry[3])
         #Check if within intron
         if CE_start>exon1stop and CE_stop<exon2start:
-            #print("A CE influenced an IR score!")
-            #doesnt seem to happen...
             #If this PSI=1
-            PSI="0"
+            PSI="0.0"
             return PSI
-                    
+    
     #Insert read confidence interval
     insert_confidence=[insert_mean-1.96*(insert_sd/math.sqrt(len(sample_names))),insert_mean+1.96*(insert_sd/math.sqrt(len(sample_names)))]
     
     #We only want to count each read of a read pair once per event. So we have a list of reads that have already been counted.
     counted=dict()
     #Note that we prioritize counting spliced reads, so those are checked first.
-    
     #Initialize opening of file
     samfile=pysam.AlignmentFile(bam_file, 'rb', index_filename=index_file)
     
-    #Get Spliced Reads
-    #Open bam file in gene range.
-    gene_start=int(current_gene[3])
-    gene_stop=int(current_gene[4])
-    spliced_reads=samfile.fetch(chrom, gene_start, gene_stop)
-    
+    #Check if there is AD/AA events involving the IR coordinates
+    AA_AD=False
     spliced_counter=0
-    for read in spliced_reads:
-        #Filter
-        if Filter_Reads(read, strand)==True:
-            continue
-        #only spliced reads
-        if not re.search(r'\d+M(?:\d+[I,D,S,H])?\d+N(?:\d+[I,D,S,H])?\d+M',read.cigarstring):
-            #This is spliced, but its could have insertions and/or deletions around the intron... 
-            if not re.search(r'\d+M\d+N\d+M',read.cigarstring):
-                excluded_reads.add(read.query_name)
-                continue
-
-        read_start=int(read.reference_start)
-        read_length=int(read.infer_query_length())
-        read_name=read.query_name
-        #Allow for several splice junctions in one read.
-        current_cigar = read.cigarstring
-        current_start = int(read_start)
-        
-        while re.search(r'(\d+)M(\d+)N(\d+)M', current_cigar):
-            #assign splice junction variables
-            junction = re.search(r'(\d+)M(\d+)N(\d+)M', current_cigar)
-            
-            #assign variables to groups.
-            exon1 = int(junction.group(1))
-            intron=int(junction.group(2))
-            exon2=int(junction.group(3))
-            exon1_start = current_start
-            exon1_end = exon1_start+exon1+1  #exclusive
-            exon2_start = exon1_end+intron -1 #inclusive
-            exon2_end=exon2_start+exon2
+    a=0
+    b=0
+    for event in AA_counts[sample]:
+        sum_counts=0
+        for start in AA_counts[sample][event]:
+            sum_counts+=AA_counts[sample][event][start]
+            if start ==exon2start or start== exon1stop:
+                #We have an AA event overlapping with the intron to be scored. Use splice counts from that.
+                AA_AD=True
+                spliced_counter+=sum_counts
+                #get coordinates for overlap reads.
+                if strand=="+":
+                    a=min(AA_counts[sample][event].keys())
+                else:
+                    a=max(AA_counts[sample][event].keys())
+        #if event is found, stop iterating.
+        if a!=0:
+            break
                 
-            #skip alignments with less than 3 matching bases in an exon.
-            if exon1<3 or exon2<3:
+    for event in AD_counts[sample]:
+        sum_counts=0
+        for stop in AD_counts[sample][event]:
+            sum_counts+=AD_counts[sample][event][stop]
+            if stop==exon2start or stop==exon1stop:
+                #We have an AD event overlapping with the intron to be scored. Use splice counts from that.
+                spliced_counter+=sum_counts
+                AA_AD=True
+                #get coordinates for overlap reads
+                if strand=="+":
+                    b=max(AD_counts[sample][event].keys())
+                else:
+                    b=min(AD_counts[sample][event].keys())
+        #can stop iterating through events if event is found
+        if b!=0:
+            break
+                
+    
+    #If there is no overlap with an AD or AA event, then we need to manually count spliced reads.
+    if AA_AD==False:
+        #Get Spliced Reads
+        #Open bam file in gene range.
+        gene_start=int(current_gene[3])
+        gene_stop=int(current_gene[4])
+        spliced_reads=samfile.fetch(chrom, gene_start, gene_stop)
+        
+        for read in spliced_reads:
+            #Filter
+            if Filter_Reads(read, strand)==True:
+                continue
+            #only spliced reads
+            if not re.search(r'\d+M(?:\d+[I,D,S,H])?\d+N(?:\d+[I,D,S,H])?\d+M',read.cigarstring):
+                #This is spliced, but its could have insertions and/or deletions around the intron... 
+                if not re.search(r'\d+M\d+N\d+M',read.cigarstring):
+                    excluded_reads.add(read.query_name)
+                    continue
+    
+            read_start=int(read.reference_start)
+            read_length=int(read.infer_query_length())
+            read_name=read.query_name
+            #Allow for several splice junctions in one read.
+            current_cigar = read.cigarstring
+            current_start = int(read_start)
+            
+            while re.search(r'(\d+)M(\d+)N(\d+)M', current_cigar):
+                #assign splice junction variables
+                junction = re.search(r'(\d+)M(\d+)N(\d+)M', current_cigar)
+                
+                #assign variables to groups.
+                exon1 = int(junction.group(1))
+                intron=int(junction.group(2))
+                exon2=int(junction.group(3))
+                exon1_start = current_start
+                exon1_end = exon1_start+exon1+1  #exclusive
+                exon2_start = exon1_end+intron -1 #inclusive
+                exon2_end=exon2_start+exon2
+                    
+                #skip alignments with less than 3 matching bases in an exon.
+                if exon1<3 or exon2<3:
+                    # update cigar string
+                    current_cigar = re.sub(r'^.*?N', 'N', current_cigar).lstrip("N")
+                    current_start= exon2_start
+                    continue
+                
+                #Check if the exons match the IR event
+                #print(exon1_start)
+                if exon1_start< exon2start and exon2_end>exon1stop:
+                    if read_name not in counted:
+                        spliced_counter+=1
+                        counted[read_name]="spliced"
+    
                 # update cigar string
                 current_cigar = re.sub(r'^.*?N', 'N', current_cigar).lstrip("N")
                 current_start= exon2_start
-                continue
-            
-            #Check if the exons match the IR event
-            #print(exon1_start)
-            if exon1_start< exon2start and exon2_end>exon1stop:
-                if read_name not in counted:
-                    spliced_counter+=1
-                    counted[read_name]="spliced"
+    #If there is an AA, AD event, we can use their splice counts
+    else:
+        spliced_counter+=sum_counts
+        
+        
+    #To count overlapping reads, we need to know which points they need to overlap with:
+    #If there is an AA/AD event then there might be additional coordinates to check apart from the IR.
+    if AA_AD==True:
+        points=dict()
+        intron_start=exon1stop
+        intron_stop=exon2start
+        #If a is not 0, then there is an AA event
+        if a!=0:
+            #If the strand is +, then a is on the right of the IR
+            if strand=="+":
+                points[a]="right"
+                if exon2start != a:
+                    intron_stop=a
+                    points[exon2start]="right"
+            #if the strand is -, then a is on the left of the IR.
+            else:
+                points[a]="left"
+                if exon1stop!=a:
+                    intron_start=a
+                    points[exon1stop]="left"
+        #If b is not 0, then there is an AD event.
+        if b!=0:
+            #if the strand is +, then b is on the left of the IR
+            if strand=="+":
+                points[b]="left"
+                if exon1stop !=b:
+                    intron_start=b
+                    points[exon1stop]="left"
+            if strand=="-":
+                points[b]="right"
+                if exon2start != b:
+                    intron_stop=b
+                    points[exon2start]="right"
 
-            # update cigar string
-            current_cigar = re.sub(r'^.*?N', 'N', current_cigar).lstrip("N")
-            current_start= exon2_start
+    #If there is no AA/AD event, then we have the usual IR start and stop
+    else:
+        points={exon1stop:"left", exon2start:"right"}
+        intron_start=exon1stop
+        intron_stop=exon2start
     
-    #Get Overlapping Reads
-    #Fetch reads in gene, since we want them to overlap with beginning or end or IR, the reads cant be too far away from our coordinates.
-    #so we use a generous range of pm 300.
-    reads_genome=samfile.fetch(chrom,exon1stop-300, exon2start+300)
-    overlap_counter=0
-
-    #Only keep IR which have overlapping reads on both sides.
+    #Only score IR which have overlapping reads on both sides.
     left=False
     right=False
-    for read in reads_genome:
-        #Filter
-        if Filter_Reads(read, strand)==True:
-            continue
-        #no spliced reads
-        if re.search(r'\d+M(?:\d+[I,D,S,H])?\d+N(?:\d+[I,D,S,H])?\d+M',read.cigarstring):
-            #This is spliced, but its could have insertions and/or deletions around the intron... 
-            if not re.search(r'\d+M\d+N\d+M',read.cigarstring):
-                excluded_reads.add(read.query_name)
-            continue
-        
-        #if distance between reads too far, then this is a sign that the second read is in an exon and in between is a break. So no IR.
-        if read.tlen>insert_confidence[1]:
-            continue
-        
-        read_name=read.query_name
-        read_start=int(read.reference_start)
-        read_length=int(read.infer_query_length())
-        #check coordinates, if they overlap the exon1end or the exon2start, it could be an overlap read.
-        parts=re.search(r'((?:\d+[I,D,S,H])?)((?:\d+M)*)((?:\d+[I,D,S,H])?)((?:\d+M)?)((?:\d+[I,D,S,H])?)((?:\d+M)?)',read.cigarstring)
-        #5 groups: first one before match, second match, third one in between matches, fourth one match, 5th following match.
-        match_length=0
-        after_match=0
-        before_match=0
-        read_stop=read_start+read_length
-        #remove unaligned parts before match
-        if parts.group(1):
-            before_match=int(re.sub('[IDSH]', '', parts.group(1)))
-        read_start=read_start+before_match
-        
-        #match group
-        if parts.group(2):
-            #add to match length
-            match_length+=int(parts.group(2).strip("M"))
-        
-        #Potential part between matches:
-        if parts.group(3):
-            #Is last group if there is only one M, and middle if theres 2.
-            if parts.group(4):
-                #Different behavior for S, D, and I
-                if re.search(r'[SI]', parts.group(3)):
-                    #add to match length
-                    match_length+=int(re.sub('[IDSH]', '', parts.group(3)))
-                    #D does not get added, as it shortens the query.
-            else:
-                after_match=int(re.sub('[IDSH]', '', parts.group(3)))
-        
-        #Potential second match group
-        if parts.group(4):
-            #Add to match length
-            match_length+=int(parts.group(4).strip("M"))
-        
-        #remove unaligned parts after match
-        if parts.group(5):
-            after_match=int(re.sub('[IDSH]', '', parts.group(5)))
-        read_stop=read_stop-after_match
-        
-        #Potential third match group
-        if parts.group(6):
-            #Add to match length
-            match_length+=int(parts.group(6).strip("M"))
-        
-        #matching parts coordinates
-        if read_stop-read_start!=match_length:
-            print("Error calculating: ",read_stop-read_start, match_length, read.cigarstring)
-            print(parts.group(1),parts.group(2),parts.group(3),parts.group(4),parts.group(5), parts.group(6))
-            #if smth is funny with the read skip it.
-            continue
-        
-
-        #Find the overlapping ones left side
-        if read_start<exon1stop and read_stop>exon1stop:
-            if read_name not in counted:
-                counted[read_name]="left"
-                overlap_counter+=1
+    overlap_counter=0
+    #extract reads
+    for p in points:
+        #only fetch reads that overlap with the point coordinate
+        reads_genome=samfile.fetch(chrom,p, p+1)
+        for read in reads_genome:
+            #Filter
+            if Filter_Reads(read, strand)==True:
+                continue
+            #no spliced reads
+            if re.search(r'\d+M(?:\d+[I,D,S,H])?\d+N(?:\d+[I,D,S,H])?\d+M',read.cigarstring):
+                #This is spliced, but its could have insertions and/or deletions around the intron... 
+                if not re.search(r'\d+M\d+N\d+M',read.cigarstring):
+                    excluded_reads.add(read.query_name)
+                continue
+            
+            #if distance between reads too far, then this is a sign that the second read is in an exon and in between is a break. So no IR.
+            if read.tlen>insert_confidence[1]:
+                continue
+            read_start=int(read.reference_start)
+            read_length=int(read.infer_query_length())
+            #Since we can have AD, AA events, we check if the read pair is within the intron (not an AA, AD)
+            if read_start< intron_start or read_start+read_length> intron_stop:
+                continue
+            
+            #Every read that made it to here, is an overlap read that should be counted.
+            overlap_counter+=1
+            #Check if left and right and adjust flag
+            if points[p]=="left":
                 left=True
+                if read.query_name not in counted:
+                    counted[read.query_name]="left"
             else:
-                if counted[read_name]=="left":
-                    #already counted. but we need a flag from left or right.
-                    #flag already set if left, so we can leave it.
-                    continue
-                elif counted[read_name]=="right":
-                    #Already counted, but we need to set the flag.
-                    left=True
-                elif counted[read_name]=="spliced":
-                    #This should not happen, as the reads in a pair cannot pick up 2 versions of one event.
-                    print("Theres a bug in your code. check line ", getframeinfo(currentframe()).lineno)
-                    continue
-        #right side
-        elif read_start<exon2start and read_stop>exon2start:
-            if read_name not in counted:
-                counted[read_name]="right"
-                overlap_counter+=1
                 right=True
-            else:
-                if counted[read_name]=="right":
-                    #already counted. but we need a flag from left or right.
-                    #flag already set if left, so we can leave it.
-                    continue
-                elif counted[read_name]=="left":
-                    #Already counted, but we need to set the flag.
-                    right=True
-                elif counted[read_name]=="spliced":
-                    #This should not happen, as the reads in a pair cannot pick up 2 versions of one event.
-                    print("Theres a bug in your code. check line ", getframeinfo(currentframe()).lineno)
-                    continue
-    
+                if read.query_name not in counted:
+                    counted[read.query_name]="right"
+            
+            
     
     #If either side has no overlapping reads, then the PSI score will be NAN and the spliced reads do not need to be counted.
     #to make sure we do not exclude events supported by no reads 
     if overlap_counter>0:
         if left==False or right==False:
-              if overlap_counter>0 and spliced_counter+overlap_counter>10:
-                  print("Here a numerical psi is possible if we count them as supporting.")
-              else:
-                  print("The problem is the left and right condition", left, right)
+              #if overlap_counter>0 and spliced_counter+overlap_counter>10:
+                  #print("Here a numerical psi is possible if we count them as supporting.")
+              #else:
+                  #print("The problem is the left and right condition", left, right)
               PSI="NAN"
               return PSI
     
     #Calculate PSI
     IR=overlap_counter
     ER=spliced_counter
-    print(IR, ER)
-    
+
     if IR+ER<=10:
         #print("The problem is the read counts.", IR+ER)
         PSI="NAN"
@@ -988,6 +1004,11 @@ with open(args.input,"r") as infile:
                 infostrings=[]
                 #To save CE per sample that have PSI=1
                 CE_PSI=dict()
+                #To save AA spliced read counts per sample
+                AA_counts=dict()
+                #To save AD spliced read counts per sample
+                AD_counts=dict()
+                
                 
             
             #We have encountered the next gene! Process all events of previous gene.
@@ -1008,6 +1029,10 @@ with open(args.input,"r") as infile:
                 infostrings=[]
                 #To save CE per sample that have PSI=1
                 CE_PSI=dict()
+                #To save AA spliced read counts per sample
+                AA_counts=dict()
+                #To save AD spliced read counts per sample
+                AD_counts=dict()
             
             #Previous gene is not outside of range! Horray! Make Scores
             else:
@@ -1016,8 +1041,11 @@ with open(args.input,"r") as infile:
                 for sample in sample_names:
                     #initialize CE list for sample, to append CE with PSI=1
                     CE_PSI[sample]=[]
+                    #Initialize AD/AA count dict per sample
+                    AA_counts[sample]=dict()
+                    AD_counts[sample]=dict()
+                    #calculate PSI scores
                     PSI_scores=PSI_for_Gene(current_gene, events, sample)
-                    
                     scores[sample]=PSI_scores
                 #Write into output file, separately for each AS
                 #Can merge them later, but it results in smaller files that way.
@@ -1043,6 +1071,10 @@ with open(args.input,"r") as infile:
                 infostrings=[]
                 #To save CE per sample that have PSI=1
                 CE_PSI=dict()
+                #To save AA spliced read counts per sample
+                AA_counts=dict()
+                #To save AD spliced read counts per sample
+                AD_counts=dict()
             
         #If there is no header, it is an AS event entry
         #These are sorted by alphabet. So it is always AA, AD, CE, IR
@@ -1108,6 +1140,10 @@ if wrong_range==False:
     for sample in sample_names:
         #initialize CE list for sample, to append CE with PSI=1
         CE_PSI[sample]=[]
+        #Initialize AD/AA count dict per sample
+        AA_counts[sample]=dict()
+        AD_counts[sample]=dict()
+        #Calculate PSI scores.
         PSI_scores=PSI_for_Gene(current_gene, events, sample)
         
         scores[sample]=PSI_scores
