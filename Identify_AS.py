@@ -66,7 +66,7 @@ Possible Bugs:
 import argparse
 import re
 import time
-
+from multiprocessing import Pool
 
 
 #%% Time
@@ -154,79 +154,9 @@ if args.AS:
 inputs=sorted(inputs)
 
 
+#%% Functions
 
-#%% User Defined Functions
-
-def add_to(events):
-    for e in events:
-        
-        #We dont want to add a last exon for AD or a first one for AA.
-        if e=="AA":
-            if entry[4]=="first" or coord_exons[key_string][4]=="first":
-                continue
-            #We want to save the actual exon starts (not just smaller coordinate.)
-            strand=entry[3]
-            if strand=="+":
-                start1=int(entry[1])
-                start2=int(coord_exons[key_string][1])
-            
-            else:
-                start1=int(entry[2])
-                start2=int(coord_exons[key_string][2])
-            #Go through previous entries in potential_AA to make sure theres no duplicates.
-            event_exists=False
-            for events in potential_AA:
-                if start1 in events[0] and start2 not in events[0]:
-                    events[0].append(start2)
-                    event_exists=True
-                elif start2 in events and start1 not in events:
-                    events[0].append(start1)
-                    event_exists=True
-            
-            #If the event is not found, make a new one.
-            if event_exists==False:
-                potential_AA.append([[int(start1), int(start2)], entry[-2], entry[-1]])
-        
-            
-        if e=="AD":
-            if entry[4]=="last" or coord_exons[key_string][4]=="last":
-                continue
-            
-            #save exon stops (actual, not just bigger coordinate)
-            strand=entry[3]
-            if strand=="+":
-                stop1=int(entry[2])
-                stop2=int(coord_exons[key_string][2])
-            
-            else:
-                stop1=int(entry[1])
-                stop2=int(coord_exons[key_string][1])
-            #Go through previous entries in potential_AA to make sure theres no duplicates.
-            event_exists=False
-            for events in potential_AD:
-                if stop1 in events[0] and stop2 not in events[0]:
-                    events[0].append(stop2)
-                    event_exists=True
-                elif stop2 in events[0] and stop1 not in events[0]:
-                    events[0].append(stop1)
-                    event_exists=True
-                elif stop1 in events[0] and stop2 in events[0]:
-                    event_exists=True
-                    
-            #If the event is not found, make a new one.
-            if event_exists==False:
-                potential_AD.append([[stop1, stop2], entry[-2], entry[-1]])
-
-        
-
-
-#%% 1. Process Database input
-
-#outer dictionary with gene names as key
-gene_dict=dict()
-print("Creating Database Dictionary...", end="\r")
-
-for file in [args.gencode, args.refseq]:
+def database_read(file):
     with open(file, "r") as infile:
         for line in infile:
             # To exclude potential title lines/empty lines, formatting mistakes
@@ -291,6 +221,112 @@ for file in [args.gencode, args.refseq]:
                                                            exon_smaller[i], 
                                                            exon_bigger[i], 
                                                            strand, position,db])
+    return gene_dict
+
+#To merge two nested dictionaries, I wrote a function.
+#This atm works for this specific situation but id like it to work for more general as well. Eventually.
+def merge_nested_dict(list_of_dicts):
+    """
+    Merges a list of nested dicts into a new dictionary.
+
+    Parameters
+    ----------
+    list_of_dicts : DICT
+        List containing all dictionaries to be merged.
+
+    Returns new_dict containing all information from the list of dicts.
+    -------
+
+    """
+    #Initialize resulting dict
+    new_dict=dict()
+    
+    for dictionary in list_of_dicts:
+        for k, v in dictionary.items():
+            if k not in new_dict:
+                new_dict[k]=dict()
+            #k is the gene name, v is the transcript dictionary.
+            if str(type(v))=="<class 'dict'>":
+                #if the nested thing is a dictionary, add them together.
+                for i, j in v.items():
+                    new_dict[k][i]=j
+            
+    return new_dict
+
+def add_to(events):
+    for e in events:
+        
+        #We dont want to add a last exon for AD or a first one for AA.
+        if e=="AA":
+            if entry[4]=="first" or coord_exons[key_string][4]=="first":
+                continue
+            #We want to save the actual exon starts (not just smaller coordinate.)
+            strand=entry[3]
+            if strand=="+":
+                start1=int(entry[1])
+                start2=int(coord_exons[key_string][1])
+            
+            else:
+                start1=int(entry[2])
+                start2=int(coord_exons[key_string][2])
+            #Go through previous entries in potential_AA to make sure theres no duplicates.
+            event_exists=False
+            for events in potential_AA:
+                if start1 in events[0] and start2 not in events[0]:
+                    events[0].append(start2)
+                    event_exists=True
+                elif start2 in events and start1 not in events:
+                    events[0].append(start1)
+                    event_exists=True
+            
+            #If the event is not found, make a new one.
+            if event_exists==False:
+                potential_AA.append([[int(start1), int(start2)], entry[-2], entry[-1]])
+        
+            
+        if e=="AD":
+            if entry[4]=="last" or coord_exons[key_string][4]=="last":
+                continue
+            
+            #save exon stops (actual, not just bigger coordinate)
+            strand=entry[3]
+            if strand=="+":
+                stop1=int(entry[2])
+                stop2=int(coord_exons[key_string][2])
+            
+            else:
+                stop1=int(entry[1])
+                stop2=int(coord_exons[key_string][1])
+            #Go through previous entries in potential_AA to make sure theres no duplicates.
+            event_exists=False
+            for events in potential_AD:
+                if stop1 in events[0] and stop2 not in events[0]:
+                    events[0].append(stop2)
+                    event_exists=True
+                elif stop2 in events[0] and stop1 not in events[0]:
+                    events[0].append(stop1)
+                    event_exists=True
+                elif stop1 in events[0] and stop2 in events[0]:
+                    event_exists=True
+                    
+            #If the event is not found, make a new one.
+            if event_exists==False:
+                potential_AD.append([[stop1, stop2], entry[-2], entry[-1]])
+
+#%% Process databases in parallel.
+
+#Initialize
+gene_dict=dict()
+print("Creating Database Dictionary...", end="\r")
+
+#Parallelisation so gencode and refseq are read in at the same time.
+if __name__=="__main__":
+    with Pool() as pool:
+        #result is a list. i.e. two gene_dicts.
+        result=pool.map(database_read, [args.refseq, args.gencode])
+
+#Merge gencode and refseq outputs
+gene_dict=merge_nested_dict(result)
 
 print("Creating Database Dictionary: Done! \n", end="\r")
 
@@ -307,8 +343,7 @@ for gene in gene_dict:
     #Take smallest start and biggest stop as range of gene.
     gene_ranges[gene]=[chrom, strand, min(starts), max(stops)]
 
-    
-#%% Identify alternative splicing events
+#%% Identify alternative splice events.
 
 out=open(args.out,"w")
 out.write("Location\tAS_Type\tGene_Name\tDatabase\tGencode_Transcript_IDs\tRefseq_Transcript_IDs\n")
@@ -617,70 +652,3 @@ out.close()
 
 print("Run time: {:.2f} seconds.".format(time.time()-start_time))  
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
