@@ -20,7 +20,7 @@ Useage:
 Possible Bugs:
 """
 
-#%% Imports
+#%% 0.0 Imports
 
 import argparse
 import glob
@@ -28,13 +28,8 @@ import re
 import time
 import pysam
 import math
-from inspect import currentframe, getframeinfo
 
-#%% Time
-
-start_time=time.time()
-
-#%% 0. argparse
+#%% 0.1 argparse
 
 "0. Setting up argparse, handling input parameters"
 
@@ -90,7 +85,7 @@ if args.InsertSize:
                                          of wrong format. Required format is:
                                              'Mean [float] Standard Deviation [float]'""")
     
-#%% User Defined Functions    
+#%% 0.2 Functions    
 
 def Filter_Reads(read, gene_strand):
     skip=False
@@ -925,9 +920,13 @@ def PSI_IR(sample, entry, gene):
         PSI=str(round(IR/(IR+ER),2))
 
     return PSI    
-    
 
-#%% Find all samples and their alignment files
+#%% 0.3 Start Timer
+
+start_time=time.time()
+
+
+#%% 1. Find all samples and their alignment files
 
 #All bam files. 
 argument_glob=args.samples+"/**/alignment.bam"
@@ -936,7 +935,7 @@ bam_file_list=glob.glob(argument_glob, recursive=True)
 #Assuming that each bam.file is in its own sample folder:
 sample_names=[i.split("/")[-4] for i in bam_file_list]
 
-#%% Score Splicing events
+#%% 2. Score Splicing events
 
 #Open output file
 out=open(args.out, "w")
@@ -1111,7 +1110,6 @@ if wrong_range==False:
     #Reset events and current gene not necessary.
 
 out.close()
-
 
 
 #%% End time
