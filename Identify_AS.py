@@ -96,12 +96,6 @@ parser.add_argument('--gencode', '-g', required=True,
 parser.add_argument('--refseq', '-r', required=True,
                     help="""tsv file containing bed file information on 
                     annotated exons from RefSeq as well as gene names.""")
-parser.add_argument('--AS', '-as', type=str, required=True,
-                    help="""Which type of alternative splicing event we are
-                    interested in. "CE" for Casette Exons, "AA" for alternative
-                    acceptors, "AD" for alternative donors, "IR" for intron
-                    retention and "ALL" for all of the types. Several seperated
-                    by ,.""")
 parser.add_argument('--bed', '-b', type=bool,
                     help="If an output file bed file for each type of event is wished for,\
                         set to True")
@@ -123,36 +117,6 @@ if args.coordinates:
                                          wrong format. Input as 
                                          chrX:XXXX-XXXX.""")
         quit()
-
-
-if args.AS:
-    allowed_inputs=["CE", "AA", "AD", "IR", "ALL"]
-    inputs=args.AS.split(",")
-    inputs=[i.upper() for i in inputs]
-    for i in inputs:
-        if i not in allowed_inputs:
-            raise argparse.ArgumentTypeError("""The allowed abbreviations for
-                                             splicing events are "CE" for 
-                                             Casette Exons, "AA" for 
-                                             alternative
-                                             acceptors, "AD" for alternative 
-                                             donors, "IR" for intron
-                                             retention and "ALL" for all of 
-                                             the types. Several seperated
-                                             by ,.""")
-            quit()
-            
-    #If input is all events, make sure the code runs through all:
-    if inputs[0].upper()=="ALL":
-        inputs=["CE", "AA", "AD", "IR"]
-    #if IR is in the events, but CE is not, then CE still has to run! Because needed for PSI of IR
-    if "IR" in inputs and "CE" not in inputs:
-        print("Casette exons (CE) will also be identified as needed for PSI score calculation of intron retention (IR).")
-        inputs.append("CE")
-        
-#Sort inputs so that CE will be scored before IR.
-inputs=sorted(inputs)
-
 
 #%% Functions
 
@@ -348,6 +312,8 @@ for gene in gene_dict:
 out=open(args.out,"w")
 out.write("Location\tAS_Type\tGene_Name\tDatabase\tGencode_Transcript_IDs\tRefseq_Transcript_IDs\n")
 
+#Inputs previously, now is just all types of AS we are investigating.
+inputs=["AA", "AD", "CE", "IR"]
 #initiate progress counter
 total_count=len(list(gene_ranges.keys()))*len(inputs)
 current_count=0

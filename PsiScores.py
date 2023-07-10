@@ -60,13 +60,7 @@ parser.add_argument('--InsertSize', '-is', type=str,
 parser.add_argument('--coordinates', '-c', type=str,
                     help="""Start and stop coordinates of region of interest,
                     as well as chromosome. Format: chr[]:start-stop""")
-parser.add_argument('--AS', '-as', type=str, required=True,
-                    help="""Which type of alternative splicing event we are
-                    interested in. "CE" for Casette Exons, "AA" for alternative
-                    acceptors, "AD" for alternative donors, "IR" for intron
-                    retention and "ALL" for all of the types. Several seperated
-                    by ,.""")                    
-                    
+
 
 
 args = parser.parse_args()
@@ -85,32 +79,6 @@ if args.coordinates:
                                          wrong format. Input as 
                                          chrX:XXXX-XXXX.""")
         quit()
-
-
-if args.AS:
-    allowed_inputs=["CE", "AA", "AD", "IR", "ALL"]
-    inputs=args.AS.split(",")
-    inputs=[i.upper() for i in inputs]
-    for i in inputs:
-        if i not in allowed_inputs:
-            raise argparse.ArgumentTypeError("""The allowed abbreviations for
-                                             splicing events are "CE" for 
-                                             Casette Exons, "AA" for 
-                                             alternative
-                                             acceptors, "AD" for alternative 
-                                             donors, "IR" for intron
-                                             retention and "ALL" for all of 
-                                             the types. Several seperated
-                                             by ,.""")
-            quit()
-            
-    #If input is all events, make sure the code runs through all:
-    if inputs[0].upper()=="ALL":
-        inputs=["CE", "AA", "AD", "IR"]
-    #if IR is in the events, but CE is not, then CE still has to run! Because needed for PSI of IR
-    if "IR" in inputs and "CE" not in inputs:
-        print("Casette exons (CE) will also be identified as needed for PSI score calculation of intron retention (IR).")
-        inputs.append("CE")
 
 #If we need to calculate scores for intron retention, we require an average insert size between the reads.
 if args.InsertSize:
@@ -1088,10 +1056,6 @@ with open(args.input,"r") as infile:
             info=line.split("\t")[0].split("_")
             #Different ways of saving them for different AS. First AA.
             if current_AS=="AA":
-                #check if this is an AS event of interest
-                if "AA" not in inputs:
-                    continue
-                
                 #1.column has format eventnumber, chrom, strand, start coord exon 2
                 #events for AA will be eventnumber: [chrom, strand, startcoord]
                 if info[0] not in events["AA"]:
@@ -1101,10 +1065,6 @@ with open(args.input,"r") as infile:
                 
             #AD
             elif current_AS=="AD":
-                #check if this is an AS event of interest
-                if "AD" not in inputs:
-                    continue
-                
                 #1.column has format eventnumber, chrom, strand, stopcoord exon 1
                 #events for AD will be eventnumber: [chrom, strand, stopcoord]
                 if info[0] not in events["AD"]:
@@ -1114,20 +1074,12 @@ with open(args.input,"r") as infile:
             
             #CE
             elif current_AS=="CE":
-                #check if this is an AS event of interest
-                if "CE" not in inputs:
-                    continue
-                
                 #1. column has format: chrom, strand, exonstart, exonend
                 #Save to list
                 events["CE"].append(info)
             
             #IR
             elif current_AS == "IR":
-                #check if this is an AS event of interest
-                if "IR" not in inputs:
-                    continue
-                
                 #1. column has format: chrom, strand, intronstart, intronend
                 #Save to list
                 events["IR"].append(info)
