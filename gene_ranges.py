@@ -17,7 +17,7 @@ Procedure:
     3. Write output file.
     
 Useage:
-    
+    python gitrepo/gene_ranges.py -g ~/MasterProject/Database/hg38_GENCODE39_all.tsv -r ~/MasterProject/Database/hg38_NCBI_all.tsv -o gene_ranges.bed -i test_genes.txt 
     
 Possible Bugs:
 """
