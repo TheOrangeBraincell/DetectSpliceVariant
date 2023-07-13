@@ -1,14 +1,42 @@
 # -*- coding: utf-8 -*-
 """
 Date: Wed Jul  5 11:06:17 2023
-File Name:
+File Name: PsiScores.py
 Author: Mirjam Karlsson-Müller
 
 Description:
+    Follows the Identify_AS script. It reads the event in the Identify_AS output,
+    finds reads matching the events in the samples and finally scores them based on the read counts.
     
-    
+Abbreviations:
+    AS=     Alternative Splicing
+    CE=     Casette Exon
+    AA=     Alternative Acceptor
+    AD=     Alternative Donor
+    IR=     Intron Retention    
+
 List of Functions:
     
+    Filter_Reads(): 
+        Basic filtering done for all .bam file entries before processing. Reads with non-primary alignments
+        as well as reads on the wrong strand, are filtered out.
+    
+    PSI_CE(): 
+        Calculates the PSI score for one sample and potential CE event. Also requires gene name as input.
+        Returns PSI score as string for easier writing and allowing for NAN
+    
+    PSI_AA():
+        Calculates the PSI score for one sample and start in AA event. Also requires gene name as input.
+        Returns PSI score as string for easier writing and allowing for NAN
+    
+    PSI_AD():
+        Calculates the PSI score for one sample and stop in AD event. Also requires gene name as input.
+        Returns PSI score as string for easier writing and allowing for 
+    
+    PSI_IR():
+        Calculates the PSI score for one sample and potential IR event. Also requires gene name as input.
+        Returns PSI score as string for easier writing and allowing for NAN
+        
 Procedure: 
     1.
     2.
@@ -16,6 +44,10 @@ Procedure:
     
 Useage:
     
+    #For ESR1 (accordingly for all others.)
+    python ../../gitrepo/PsiScores.py -i AS_events_ESR1.tsv -o PSI_ESR1.tsv -s ../bam_file_list.txt -is "Mean 231.467 Standard Deviation 92.8968"
+    
+    #Requires 3 cores for parallelization.
     
 Possible Bugs:
 """
@@ -23,11 +55,11 @@ Possible Bugs:
 #%% 0.0 Imports
 
 import argparse
-import glob
 import re
 import time
 import pysam
 import math
+import multiprocessing as mp
 
 #%% 0.1 argparse
 
@@ -43,8 +75,7 @@ parser = argparse.ArgumentParser(prog='Score Alternative Splicing',
                                  per sample in sample folder.""")
 
 parser.add_argument('--samples', '-s', required=True,
-                    help='folder containing sample folders containing among \
-                        others, the vcf, bam and gene.tsv files.')
+                    help='file containing the paths to the bam files of all samples.')
 parser.add_argument('--input', '-i', required=True,
                     help="Table with all identified AS events, created by Identify_AS.py")
 parser.add_argument('--out', '-o', required=True,
@@ -52,28 +83,9 @@ parser.add_argument('--out', '-o', required=True,
 parser.add_argument('--InsertSize', '-is', type=str,
                     help="""Average Insert size plus standard deviation. Format
                     'Mean X Standard Deviation Y' """)
-parser.add_argument('--coordinates', '-c', type=str,
-                    help="""Start and stop coordinates of region of interest,
-                    as well as chromosome. Format: chr[]:start-stop""")
-
-
 
 args = parser.parse_args()
 
-# Extract input coordinates, check their format.
-if args.coordinates:
-    if re.search(r'[a-z]{3}[MXY]?\d*:\d+-\d+', args.coordinates):
-        coord = re.search(r'([a-z]{3}[MXY]?\d*):(\d+)-(\d+)', args.coordinates)
-        coord_chrom = coord.group(1)
-        #To adjust for different inclusivity of stop/start for plus and minus strand, expand coordinate range by 1.
-        coord_start = int(coord.group(2))-1
-        coord_stop = int(coord.group(3))+1
-
-    else:
-        raise argparse.ArgumentTypeError("""The given coordinates are in the 
-                                         wrong format. Input as 
-                                         chrX:XXXX-XXXX.""")
-        quit()
 
 #If we need to calculate scores for intron retention, we require an average insert size between the reads.
 if args.InsertSize:
@@ -108,26 +120,14 @@ def Filter_Reads(read, gene_strand):
         
     return skip
 
-def PSI_for_Gene(gene, events, sample):
-    """
-    Calculates PSI score for all events in gene and one sample.
-
-    Parameters
-    ----------
-    gene : TYPE
-        DESCRIPTION.
-    events : TYPE
-        DESCRIPTION.
-    sample : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    None.
-
-    """
+def PSI_for_Sample(sample):
     #Iterate through event types, as they require different calculations.
-    psi_scores=[]
+    psi_scores=[sample]
+    #initialize CE list for sample, to append CE with PSI=1 (needed for IR)
+    CE_PSI[sample]=[]
+    #Initialize AD/AA count dict per sample (needed for IR)
+    AA_counts[sample]=dict()
+    AD_counts[sample]=dict()
     #In the end returns PSI scores for all events in this gene for a given sample.
     for AS in events:
         for event in events[AS]:
@@ -142,14 +142,15 @@ def PSI_for_Gene(gene, events, sample):
                     psi_scores.append(i)
             elif AS=="CE":
                 PSI=PSI_CE(sample, event, gene)
-                if PSI=="1.0":
-                    CE_PSI[sample].append(event)
+                if PSI==1:
+                    CE_PSI[sample].append(events[AS][event])
                 psi_scores.append(PSI)
             else:
                 PSI=PSI_IR(sample, event, gene)
                 psi_scores.append(PSI)
                 
     return psi_scores
+
     
 def PSI_CE(sample, CE, gene):
     """
@@ -190,7 +191,7 @@ def PSI_CE(sample, CE, gene):
     
     #For the spliced reads, we need to fetch a bigger region and then recognise the spliced alignments.
     #We dont want to miss any reads, so we make this region the gene range the exon is in.
-    spliced_reads=samfile.fetch(chrom, int(current_gene[3]), int(current_gene[4]))
+    spliced_reads=samfile.fetch(chrom, int(gene[3]), int(gene[4]))
     
     #initialize counters
     counter_left=0
@@ -303,10 +304,10 @@ def PSI_CE(sample, CE, gene):
 
 
 def PSI_AA(gene, sample, event):
-    chrom = current_gene[1]
-    strand=current_gene[2]
-    gene_start=int(current_gene[3])
-    gene_stop=int(current_gene[4])
+    chrom = gene[1]
+    strand=gene[2]
+    gene_start=int(gene[3])
+    gene_stop=int(gene[4])
     
     #Find .bam file corresponding to sample name.
     for file in bam_file_list:
@@ -485,10 +486,10 @@ def PSI_AA(gene, sample, event):
     return psi_sorted
     
 def PSI_AD(gene, sample, event):
-    chrom = current_gene[1]
-    strand=current_gene[2]
-    gene_start=int(current_gene[3])
-    gene_stop=int(current_gene[4])
+    chrom = gene[1]
+    strand=gene[2]
+    gene_start=int(gene[3])
+    gene_stop=int(gene[4])
     
     #Find .bam file corresponding to sample name.
     for file in bam_file_list:
@@ -759,8 +760,8 @@ def PSI_IR(sample, entry, gene):
     if AA_AD==False:
         #Get Spliced Reads
         #Open bam file in gene range.
-        gene_start=int(current_gene[3])
-        gene_stop=int(current_gene[4])
+        gene_start=int(gene[3])
+        gene_stop=int(gene[4])
         spliced_reads=samfile.fetch(chrom, gene_start, gene_stop)
         
         for read in spliced_reads:
@@ -773,7 +774,7 @@ def PSI_IR(sample, entry, gene):
                 if not re.search(r'\d+M\d+N\d+M',read.cigarstring):
                     excluded_reads.add(read.query_name)
                     continue
-    
+            
             read_start=int(read.reference_start)
             read_length=int(read.infer_query_length())
             read_name=read.query_name
@@ -925,7 +926,7 @@ def PSI_IR(sample, entry, gene):
 
 start_time=time.time()
 
-
+""" We keep this for now. in case ill need it in the overarching script.
 #%% 1. Find all samples and their alignment files
 
 #All bam files. 
@@ -934,185 +935,177 @@ bam_file_list=glob.glob(argument_glob, recursive=True)
 
 #Assuming that each bam.file is in its own sample folder:
 sample_names=[i.split("/")[-4] for i in bam_file_list]
+"""
+#%% 1. Open Bam file list.
 
-#%% 2. Score Splicing events
+print("Reading in BAM files...", end="\r")
 
-#Open output file
-out=open(args.out, "w")
-out.write("Location\t"+"\t".join(sample_names)+"\n")
+bam_file_list=[]
+with open(args.samples, "r") as infile:
+    for line in infile:
+        bam_file_list.append(line.strip())
+
+#Assuming that each bam.file is in its own sample folder with the sample name as folder name. 
+sample_names=list(set(sorted([i.split("/")[-4] for i in bam_file_list])))
+
+print("Reading in BAM files: Done! \n", end="\r")
+
+
+#%% 2. Collect Splice events
+
+print("Reading in Splice Events...", end="\r")
 
 #to keep track of how many "weird" spliced reads we exclude, initiate set
 excluded_reads=set()
 
-current_gene=""
-#For genes not within the input range, we have a flag
-wrong_range=False
-#Open input file
-with open(args.input,"r") as infile:
+#We no longer iterate through genes. So we just have to collect all events...
+events={"AA":{}, "AD":{}, "CE":[], "IR":[]}
+infostrings=[]
+#To save CE per sample that have PSI=1
+CE_PSI=dict()
+#To save AA spliced read counts per sample
+AA_counts=dict()
+#To save AD spliced read counts per sample
+AD_counts=dict()
+
+#Read AS_event file
+with open(args.input, "r") as infile:
     for line in infile:
         if line.startswith("Location"):
-            #Thats the file header. Ignore
+            #thats the file header, ignore
             continue
-        #Find gene headers
         if line.startswith("#"):
-            line=line.strip("#")
-            #Check if its the first
-            if current_gene=="":
-                current_gene=[e.strip(" ") for e in line.strip("\n").split(",")]
-                #Check if new gene in input range
-                if args.coordinates:
-                    if current_gene[1]!= coord_chrom:
-                        wrong_range=True
-                    elif int(current_gene[3])>coord_stop or int(current_gene[4])<coord_start:
-                        wrong_range=True
-                    else:
-                        wrong_range=False
-                events={"AA":{}, "AD":{}, "CE":[], "IR":[]}
-                infostrings=[]
-                #To save CE per sample that have PSI=1
-                CE_PSI=dict()
-                #To save AA spliced read counts per sample
-                AA_counts=dict()
-                #To save AD spliced read counts per sample
-                AD_counts=dict()
-                
-                
-            
-            #We have encountered the next gene! Process all events of previous gene.
-            #If we have a previous gene that is outside of range, then we only reset.
-            elif wrong_range==True:
-                #Reset events and current gene
-                #list of gene information: gene name, chrom, strand, min, max
-                current_gene=[e.strip(" ") for e in line.strip("\n").split(",")]
-                #Check if new gene in input range
-                if args.coordinates:
-                    if current_gene[1]!= coord_chrom:
-                        wrong_range=True
-                    elif int(current_gene[3])>coord_stop or int(current_gene[4])<coord_start:
-                        wrong_range=True
-                    else:
-                        wrong_range=False
-                events={"AA":{}, "AD":{}, "CE":[], "IR":[]}
-                infostrings=[]
-                #To save CE per sample that have PSI=1
-                CE_PSI=dict()
-                #To save AA spliced read counts per sample
-                AA_counts=dict()
-                #To save AD spliced read counts per sample
-                AD_counts=dict()
-            
-            #Previous gene is not outside of range! Horray! Make Scores
-            else:
-                #"Go through samples, extract reads, loop through events, do PSI"
-                scores=dict()
-                for sample in sample_names:
-                    #initialize CE list for sample, to append CE with PSI=1
-                    CE_PSI[sample]=[]
-                    #Initialize AD/AA count dict per sample
-                    AA_counts[sample]=dict()
-                    AD_counts[sample]=dict()
-                    #calculate PSI scores
-                    PSI_scores=PSI_for_Gene(current_gene, events, sample)
-                    scores[sample]=PSI_scores
-                #Write into output file, separately for each AS
-                #Can merge them later, but it results in smaller files that way.
-                for i in range(0, len(infostrings)):
-                    #add AS to infostring so we know what type of event it is.
-                    newline=infostrings[i]
-                    for sample in scores:
-                        newline+="\t"+scores[sample][i]
-                    out.write(newline+"\n")     
-                    
-                #Reset events and current gene
-                #list of gene information: gene name, chrom, strand, min, max
-                current_gene=[e.strip(" ") for e in line.strip("\n").split(",")]
-                #Check if in range
-                if args.coordinates:
-                    if current_gene[1]!= coord_chrom:
-                        wrong_range=True
-                    elif int(current_gene[3])>coord_stop or int(current_gene[4])<coord_start:
-                        wrong_range=True
-                    else:
-                        wrong_range=False
-                events={"AA":{}, "AD":{}, "CE":[], "IR":[]}
-                infostrings=[]
-                #To save CE per sample that have PSI=1
-                CE_PSI=dict()
-                #To save AA spliced read counts per sample
-                AA_counts=dict()
-                #To save AD spliced read counts per sample
-                AD_counts=dict()
-            
-        #If there is no header, it is an AS event entry
-        #These are sorted by alphabet. So it is always AA, AD, CE, IR
-        else:
-            #If we are in the wrong range, dont save elements
-            if wrong_range==True:
-                continue
-            #Extract all events for this gene
-            current_AS=line.strip("\n").split("\t")[1].strip(" ")
-            infostrings.append(current_AS+"_"+line.split("\t")[0])
-            info=line.split("\t")[0].split("_")
-            #Different ways of saving them for different AS. First AA.
-            if current_AS=="AA":
-                #1.column has format eventnumber, chrom, strand, start coord exon 2
-                #events for AA will be eventnumber: [chrom, strand, startcoord]
-                if info[0] not in events["AA"]:
-                    events["AA"][info[0]]=[info[1:]]
-                else:
-                    events["AA"][info[0]].append(info[1:])
-                
-            #AD
-            elif current_AS=="AD":
-                #1.column has format eventnumber, chrom, strand, stopcoord exon 1
-                #events for AD will be eventnumber: [chrom, strand, stopcoord]
-                if info[0] not in events["AD"]:
-                    events["AD"][info[0]]=[info[1:]]
-                else:
-                    events["AD"][info[0]].append(info[1:])
-            
-            #CE
-            elif current_AS=="CE":
-                #1. column has format: chrom, strand, exonstart, exonend
-                #Save to list
-                events["CE"].append(info)
-            
-            #IR
-            elif current_AS == "IR":
-                #1. column has format: chrom, strand, intronstart, intronend
-                #Save to list
-                events["IR"].append(info)
+            #This is the gene header. Print it to log so we can double check that we run for right gene.
+            print(line.strip())
+            #list of gene information: gene name, chrom, strand, min, max
+            gene=[e.strip(" ") for e in line.strip("\n").split(",")]
+            continue
 
-#Last genes scores still need to be written:
-if wrong_range==False:
-    #Previous gene is not outside of range! Horray! Make Scores
-    #"Go through samples, extract reads, loop through events, do PSI"
-    scores=dict()
+        #The remaining lines are entries: Extract all events for this gene
+        current_AS=line.strip("\n").split("\t")[1].strip(" ")
+        infostrings.append(current_AS+"_"+line.split("\t")[0])
+        info=line.split("\t")[0].split("_")
+        #Different ways of saving them for different AS. First AA.
+        if current_AS=="AA":
+            #1.column has format eventnumber, chrom, strand, start coord exon 2
+            #events for AA will be eventnumber: [chrom, strand, startcoord]
+            if info[0] not in events["AA"]:
+                events["AA"][info[0]]=[info[1:]]
+            else:
+                events["AA"][info[0]].append(info[1:])
+            
+        #AD
+        elif current_AS=="AD":
+            #1.column has format eventnumber, chrom, strand, stopcoord exon 1
+            #events for AD will be eventnumber: [chrom, strand, stopcoord]
+            if info[0] not in events["AD"]:
+                events["AD"][info[0]]=[info[1:]]
+            else:
+                events["AD"][info[0]].append(info[1:])
+        
+        #CE
+        elif current_AS=="CE":
+            #1. column has format: chrom, strand, exonstart, exonend
+            #Save to list
+            events["CE"].append(info)
+        
+        #IR
+        elif current_AS == "IR":
+            #1. column has format: chrom, strand, intronstart, intronend
+            #Save to list
+            events["IR"].append(info)
+
+print("Reading in Splice Events: Done! \n", end="\r")
+
+#%% 3. Score Splice Events
+
+#Another parallelization attempt.
+
+with mp.Pool(3) as pool:
+    #result is a list. i.e. two gene_dicts.
+    result=pool.map(PSI_for_Sample, sample_names)
+    
+#result should be a list of scores for each sample, where the lists first element is the sample name
+scores=dict()
+for r in result:
+    print(r[0])
+    scores[r[0]]=r[1:]
+
+print(scores)
+
+"""
+#"Go through samples, extract reads, loop through events, do PSI"
+scores=dict()
+for sample in sample_names:
+    print("Scoring sample ", sample_names.index(sample)+1, "/", len(sample_names), " ...", end="\r")
+    #initialize CE list for sample, to append CE with PSI=1 (needed for IR)
+    CE_PSI[sample]=[]
+    #Initialize AD/AA count dict per sample (needed for IR)
+    AA_counts[sample]=dict()
+    AD_counts[sample]=dict()
+    #calculate PSI scores
+    
+    #Iterate through event types, as they require different calculations.
+    psi_scores=[]
+    
+    # #Start separate subprocesses for AA, AD and CE.
+    # with mp.Pool() as pool:
+    #     #result is a list. i.e. two gene_dicts.
+    #     result=pool.map(PSI_for_Gene, [[gene, events, "AA", sample], [gene, events, "AD", sample], [gene, events, "CE", sample]])
+    # #print("\n", result, "\n")
+    # #result= [[psi for AA], [psi for AD], [psi for CE]]
+    # psi_scores=[]
+    # for l in result:
+    #     for i in l:
+    #         psi_scores.append(i)
+    
+    # #Now we do IR, since we need the other scores for it.
+    # IR_scores=PSI_for_Gene([gene, events, "IR", sample])
+    
+    # #append those too:
+    # for i in IR_scores:
+    #     psi_scores.append(i)
+    
+    # #In the end returns PSI scores for all events in this gene for a given sample.
+    for AS in events:
+        for event in events[AS]:
+            if AS=="AA":
+                #There is several starts for each AA, so there will be several PSI
+                PSI=PSI_AA(gene, sample, events[AS][event])
+                for i in PSI:
+                    psi_scores.append(i)
+            elif AS=="AD":
+                PSI=PSI_AD(gene, sample, events[AS][event])
+                for i in PSI:
+                    psi_scores.append(i)
+            elif AS=="CE":
+                PSI=PSI_CE(sample, event, gene)
+                if PSI=="1.0":
+                    CE_PSI[sample].append(event)
+                psi_scores.append(PSI)
+            else:
+                PSI=PSI_IR(sample, event, gene)
+                psi_scores.append(PSI)
+    
+    scores[sample]=psi_scores
+"""
+#Write into output file
+out=open(args.out, "w")
+out.write("Location\t"+"\t".join(sample_names)+"\n")
+
+for i in range(0, len(infostrings)):
+    #add AS to infostring so we know what type of event it is.
+    newline=infostrings[i]
     for sample in sample_names:
-        #initialize CE list for sample, to append CE with PSI=1
-        CE_PSI[sample]=[]
-        #Initialize AD/AA count dict per sample
-        AA_counts[sample]=dict()
-        AD_counts[sample]=dict()
-        #Calculate PSI scores.
-        PSI_scores=PSI_for_Gene(current_gene, events, sample)
-        
-        scores[sample]=PSI_scores
-    #Write into output file, separately for each AS
-    #Can merge them later, but it results in smaller files that way.
-    for i in range(0, len(infostrings)):
-        #add AS to infostring so we know what type of event it is.
-        newline=infostrings[i]
-        for sample in scores:
-            newline+="\t"+scores[sample][i]
-        out.write(newline+"\n")     
-        
-    #Reset events and current gene not necessary.
+        newline+="\t"+scores[sample][i]
+    out.write(newline+"\n")    
+
+print("All events scored and written into output file! \n", end="\r")
+
+##%% 
 
 out.close()
-
 
 #%% End time
 
 print("Run time: {:.2f} seconds.".format(time.time()-start_time))  
-
