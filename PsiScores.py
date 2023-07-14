@@ -176,11 +176,8 @@ def PSI_CE(sample, CE, gene):
     strand=CE[1]                                                                        
     
     #Find .bam file corresponding to sample name.
-    for file in bam_file_list:
-        if sample in file:
-            bam_file=file
-            index_file=file[0:-1]+"i"
-            break
+    bam_file=files[sample]
+    index_file=files[sample][0:-1]+"i"
     
     #We only want to count each read of a read pair once. So we have a list of reads that have already been counted.
     counted=[]
@@ -289,6 +286,7 @@ def PSI_CE(sample, CE, gene):
         if read_name not in counted:
             counter+=1
     
+    print(sample, "CE_"+"_".join(CE), counter_left+counter_right, counter, counter_accross)
     #counter needs to be normalized with length of the exon.
     counter_n=counter/(stop-start)
     
@@ -946,7 +944,14 @@ with open(args.samples, "r") as infile:
         bam_file_list.append(line.strip())
 
 #Assuming that each bam.file is in its own sample folder with the sample name as folder name. 
-sample_names=list(set(sorted([i.split("/")[-4] for i in bam_file_list])))
+sample_names=sorted(list(set([i.split("/")[-4] for i in bam_file_list])))
+
+#make that a dictionary.
+files=dict()
+for sample in sample_names:
+    for file in bam_file_list:
+        if sample in file:
+            files[sample]=file
 
 print("Reading in BAM files: Done! \n", end="\r")
 
@@ -1019,7 +1024,7 @@ print("Reading in Splice Events: Done! \n", end="\r")
 
 #%% 3. Score Splice Events
 
-#Another parallelization attempt.
+#Parallelize so always 3 samples at a time are doing their PSI.
 
 with mp.Pool(3) as pool:
     #result is a list. i.e. two gene_dicts.
@@ -1028,10 +1033,7 @@ with mp.Pool(3) as pool:
 #result should be a list of scores for each sample, where the lists first element is the sample name
 scores=dict()
 for r in result:
-    print(r[0])
     scores[r[0]]=r[1:]
-
-print(scores)
 
 """
 #"Go through samples, extract reads, loop through events, do PSI"
