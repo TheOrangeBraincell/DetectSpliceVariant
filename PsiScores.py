@@ -243,8 +243,6 @@ def PSI_CE(sample, CE, gene):
                 if read_name not in counted:
                     counter_left+=1
                     counted.append(read_name)
-                else:
-                    pass
             
             #Number of spliced reads from CE to next.   
             elif start <= exon1_start<=stop and exon2_start >stop:
@@ -252,8 +250,6 @@ def PSI_CE(sample, CE, gene):
                 if read_name not in counted:
                     counter_right+=1
                     counted.append(read_name)
-                else:
-                    pass
                     
             #Number of spliced reads accross CE.
             elif exon1_end<start and exon2_start>stop:
@@ -261,8 +257,6 @@ def PSI_CE(sample, CE, gene):
                 if read_name not in counted:
                     counter_accross+=1
                     counted.append(read_name)
-                else:
-                    pass
                     
             # update cigar string
             current_cigar = re.sub(r'^.*?N', 'N', current_cigar).lstrip("N")
@@ -285,8 +279,8 @@ def PSI_CE(sample, CE, gene):
         read_name=read.query_name
         if read_name not in counted:
             counter+=1
+            counted.append(read_name)
     
-    print(sample, "CE_"+"_".join(CE), counter_left+counter_right, counter, counter_accross)
     #counter needs to be normalized with length of the exon.
     counter_n=counter/(stop-start)
     
@@ -981,9 +975,9 @@ with open(args.input, "r") as infile:
             continue
         if line.startswith("#"):
             #This is the gene header. Print it to log so we can double check that we run for right gene.
-            print(line.strip())
             #list of gene information: gene name, chrom, strand, min, max
             gene=[e.strip(" ") for e in line.strip("\n").split(",")]
+            print(gene)
             continue
 
         #The remaining lines are entries: Extract all events for this gene
