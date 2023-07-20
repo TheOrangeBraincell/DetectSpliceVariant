@@ -26,7 +26,6 @@ import argparse
 import re
 import time
 import pysam
-import math
 import multiprocessing as mp
 
 #%% 0.1 argparse
@@ -97,6 +96,9 @@ start_time=time.time()
 
 #We will save the identifiers in this dict and then add the regions that should be counted.
 AS_events=dict()
+#the counts for AA and AD are saved in a dictionary counted as per group of stops/starts
+#there should no read be counted double.
+counted=dict()
 
 with open(args.input, "r") as asfile:
     for line in asfile:
@@ -118,9 +120,10 @@ with open(args.input, "r") as asfile:
         #Initialize dictionary, different for AA/AD then for IR/CE
         if AS_Type.startswith("A"):
             if AS_Type+"_"+Location.split("_")[0] not in AS_events:
-                AS_events[AS_Type+"_"+Location.split("_")[0]]={Location.split("_")[1:]: dict()}
+                AS_events[AS_Type+"_"+Location.split("_")[0]]={"_".join(Location.split("_")[1:]): dict()}
             else:
-                AS_events[AS_Type+"_"+Location.split("_")[0]][Location.split("_")[1:]]=dict()
+                AS_events[AS_Type+"_"+Location.split("_")[0]]["_".join(Location.split("_")[1:])]=dict()
+            counted[AS_Type+"_"+Location.split("_")[0]]={"spliced":[], "not":[]}
         else:
             AS_events[AS_Type+"_"+Location]=dict()
 
@@ -224,6 +227,118 @@ def CE(sample, event, read):
         if read_name not in AS_events[event]["IR"]["reads"]["spliced"] and read_name not in AS_events[event]["IR"]["reads"]["not"]:
             AS_events[event]["IR"]["count_n"]+=1
             AS_events[event]["IR"]["reads"]["not"].append(read_name)
+    return False
+    
+def AD(sample, event, read):
+    #event= AD_#
+    #AS_events[event]={stop1:{ER:{count:0, count_n:0, normalize=##}, 
+    #                        IR:{count:0, count_n:0, normalize=##}},
+    #                 stop2: etc }
+    
+    stops=sorted(list(AS_events[event].keys()))
+    gene_strand=gene[2]
+    #read information
+    read_start=int(read.reference_start)
+    read_range=sum([int(i) for i in re.findall(r'\d+', read.cigarstring)])
+    read_stop=read_start+read_range
+
+    #If both start and stop of the read are before the smallest stop in AD, no counting
+    if read_start < int(stops[0].split("_")[2]) and read_stop < int(stops[0].split("_")[2]):
+        #Read is not invalid, it just doesnt match event, hence we return false
+        return False
+    #if both start and stop of read are after the biggest stop, no counting
+    if read_start > int(stops[-1].split("_")[2]) and read_stop > int(stops[-1].split("_")[2]):
+        return False
+
+    #We are in event range, lets process the read.
+    #Is it spliced or not
+    if re.search(r'\d+M(?:\d+[I,D,S,H])?\d+N(?:\d+[I,D,S,H])?\d+M',read.cigarstring):
+        #spliced
+        #This is spliced, but its could have insertions and/or deletions around the intron... 
+        if not re.search(r'\d+M\d+N\d+M',read.cigarstring):
+            #This is invalid. we dont process it. So the function returns True.
+            excluded_reads.add(read.query_name)
+            return True
+        #Now process spliced read.
+        #Allow for several splice junctions in one read.
+        current_cigar = read.cigarstring
+        current_start = int(read.reference_start)
+        read_name=read.query_name
+        
+        while re.search(r'(\d+)M(\d+)N(\d+)M', current_cigar):
+            #assign splice junction variables
+            junction = re.search(r'(\d+)M(\d+)N(\d+)M', current_cigar)
+            
+            #assign variables to groups.
+            exon1 = int(junction.group(1))
+            intron=int(junction.group(2))
+            exon2=int(junction.group(3))
+            exon1_start = current_start
+            exon1_end = exon1_start+exon1+1  #exclusive
+            exon2_start = exon1_end+intron -1 #inclusive
+                
+            #skip alignments with less than 3 matching bases in an exon.
+            if exon1<3 or exon2<3:
+                # update cigar string
+                current_cigar = re.sub(r'^.*?N', 'N', current_cigar).lstrip("N")
+                current_start= exon2_start
+                continue
+            
+            #Update counters based on matching stops.
+            for stop in stops:
+                #Then the AD stop have to match the exon1_stop
+                if gene_strand=="+":
+                    #the coordinates on plus strand are shifted by one, as the exon end is exclusive.
+                    if str(stop.split("_")[2])==str(exon1_end-1):
+                        break
+                    
+                else:
+                    #Then AD stops have to match exon2_starts
+                    if str(stop.split("_")[2])==str(exon2_start):
+                        break
+            #Update counters for matching stop.
+            #The read counts as ER for every stop except the matched.
+            if read_name not in counted[event]["spliced"]:
+                counted[event]["spliced"].append(read_name)
+                #This counts as an ER count for every stop except the one it matches.
+                #for that one its an IR count.
+                AS_events[event][stop]["IR"]["count"]+=1
+
+                #The read (or its mate) could already be counted as a difference read. 
+                #But we prioritize spliced. So then we need to remove the difference counts.
+                if read_name in counted[event]["not"]:
+                    #remove
+                    counted[event]["not"].remove(read_name)
+                    #Deduct counts
+                    #IR for this stop
+                    AS_events[event][stop]["IR"]["count_n"]-=1
+
+            # update cigar string
+            current_cigar = re.sub(r'^.*?N', 'N', current_cigar).lstrip("N")
+            current_start= exon2_start
+    else:
+        #not spliced reads.
+        #We already excluded all reads outside the range of the event
+        #So we just need to figure out which stop they belong to.
+        for i in range(1, len(stops)):
+            stop1=int(stops[i-1].split("_")[2])
+            stop2=int(stops[i].split("_")[2])
+            #Does it overlap with this region, but not get into the next
+            if gene_strand=="+":
+                if stop2 >= read_stop > stop1:
+                    #match
+                    match=stops[i]
+                    AS_events[event][match]["IR"]["count_n"]+=1
+                    break
+            else:
+                if stop1 >= read_start > stop2:
+                    #match
+                    match=stops[i-1]
+                    AS_events[event][match]["IR"]["count_n"]+=1
+                    break
+
+    return False
+                
 
 def PSI_for_Sample(sample):
     #Gene information to open bam file.
@@ -231,44 +346,62 @@ def PSI_for_Sample(sample):
     gene_start=gene[3]
     gene_stop=gene[4]
     gene_strand=gene[2]
-    
+
     #initialize counting dictionary for this sample
     for event in AS_events:
         if event.startswith("CE"):
             AS_events[event]={"ER":{"count":0, "reads":[]}, 
                                          "IR":{"count":0, "reads":{"spliced":[], "not":[]}, "count_n":0, 
                                                "normalize":int(event.split("_")[4])-int(event.split("_")[3])}}
-        elif event.startswith("AD"):
+        elif event.startswith("AA"):
             #dict: {AD_#: {start1: dict, start2: dict}}
             starts=sorted(list(AS_events[event].keys()))
+            #The order of the starts is reversed if we are on the minus strand! 
+            if gene_strand=="+":
+                starts=starts[::-1]
             for start in AS_events[event]:
                 #Calculate normalize as difference between previous start and current.
                 current_index=starts.index(start)
-                #This next part is only true for plus strand. figure out minus strand
-                
-                "YOU ARE HERE!"
-                
                 if current_index==0:
-                    #Its the earliest start, it wont have any difference reads. hence normalization=1
+                    #Its the start furtherst of the intron, it wont have any difference reads. hence normalization=1
                     normalize=1
                 else:
                     previous_index=current_index-1
-                    current_start=int(AS_events[event][start].split("_")[3])
-                    previous_start=int(AS_events[event][starts[previous_index]].split("_")[3])
-                    normalize=current_start-previous_start
-                AS_events[event][start]={"ER":{"count":0, "reads":{"spliced":[], 
-                                                                   "not":[]},
-                                               "count_n":0, "normalize":normalize}}
+                    current_start=int(start.split("_")[2])
+                    previous_start=int(starts[previous_index].split("_")[2])
+                    normalize=max([current_start, previous_start])-min([current_start, previous_start])
+                
+                AS_events[event][start]={"IR": {"count":0,"count_n":0, "normalize":normalize}}
+        elif event.startswith("AD"):
+            #dict: {AA_#: {stop1: dict, stop2: dict}}
+            stops=sorted(list(AS_events[event].keys()))
+            #on the plus strand the innermost acceptor has the lowest coordinate, so we reverse the order
+            if gene_strand=="-":
+                stops=stops[::-1]
+            for stop in AS_events[event]:
+                #Calculate normalize as difference between previous stop and current.
+                current_index=stops.index(stop)
+                if current_index==0:
+                    #This is the outermost stop, so there is no difference to calculate.
+                    normalize=1
+                else:
+                    previous_index=current_index-1
+                    current_stop=int(stop.split("_")[2])
+                    previous_stop=int(stops[previous_index].split("_")[2])
+                    normalize=max([current_stop, previous_stop])-min([current_stop, previous_stop])
+                
+                AS_events[event][stop]={"IR": {"count":0,"count_n":0, "normalize":normalize}}
+            counted[event]={"spliced":[], "not":[]}
+    
     #open the bam file, and go through the reads.
     samfile=pysam.AlignmentFile(files[sample], 'rb', index_filename=files[sample][0:-1]+"i")
     reads=samfile.fetch(chrom, gene_start, gene_stop)
     
-    #Iterate through reads
+    #Iterate through reads, count them for events.
     for read in reads:
         #Filter
         if Filter_Reads(read, gene_strand)==True:
             continue
-        
         #Now we go through all the events and try to figure out what to count them for.
         for event in AS_events:
             #event=event id later used in first column of output.
@@ -280,17 +413,20 @@ def PSI_for_Sample(sample):
                     break
                 #Else the read just doesnt match the current event and we let the program continue.
             elif event.startswith("AA"):
-                
+                #skip=AA(sample, event, read)
+                #if skip==True:
+                    #The read is invalid all together and does not need to be investigated further.
+                    #break
                 continue
-            
             elif event.startswith("AD"):
+                skip=AD(sample, event, read)
+                if skip==True:
+                    #The read is invalid all together and does not need to be investigated further.
+                    break
                 
-                
-                continue
             elif event.startswith("IR"):
-                continue
-            
-    #Now we have gone through all the reads, we can return the PSI scores.
+                continue  
+    #Now we have counted all the reads, we can calculate the PSI scores.
     sample_PSI={"sample":sample}
     for event in AS_events:
         if event.startswith("CE"):
@@ -303,15 +439,38 @@ def PSI_for_Sample(sample):
                 #assign ER
                 ER=AS_events[event]["ER"]["count"]
                 PSI=str(round(IR/(IR+ER), 3))
-        
+            sample_PSI[event]=PSI
+            
         elif event.startswith("AA"):
             PSI="NAN"
         elif event.startswith("AD"):
-            PSI="NAN"
+            #several PSI scores for one AD event.
+            
+            
+            #PSI is NAN if there are 10 or less reads.
+            total_reads=0
+            for stop in AS_events[event]:
+                total_reads+= AS_events[event][stop]["IR"]["count"]+AS_events[event][stop]["IR"]["count_n"]
+            
+            if total_reads <11:
+                PSI="NAN"
+                for stop in AS_events[event]:
+                    sample_PSI[event+"_"+stop]=PSI 
+            else:
+                #The denominator of the PSI fraction is the same for all of the stops in the same ad event. so lets do it first.
+                ER=0
+                for stop in AS_events[event]:
+                    ER+= AS_events[event][stop]["IR"]["count"]+AS_events[event][stop]["IR"]["count_n"]/AS_events[event][stop]["IR"]["normalize"]
+                
+                #Now that we have the ER, we can calculate the PSI for each IR
+                for stop in AS_events[event]:
+                    IR=AS_events[event][stop]["IR"]["count"]+AS_events[event][stop]["IR"]["count_n"]/AS_events[event][stop]["IR"]["normalize"]
+                    PSI=str(round(IR/(IR+ER), 3))
+                    sample_PSI[event+"_"+stop]=PSI   
+                
         elif event.startswith("IR"):
             PSI="NAN"
-            
-        sample_PSI[event]=PSI
+             
 
     return sample_PSI
 
@@ -339,11 +498,19 @@ excluded_reads=set()
 with mp.Pool(3) as pool:
     #result is a list. i.e. two gene_dicts.
     result=pool.map(PSI_for_Sample, sample_names)
+# result=[]
+# for sample in sample_names:
+#     result.append(PSI_for_Sample(sample))
+
+print("results are finished")
 
 with open(args.out, "w") as outfile:
     #write header
     outfile.write("Event\t"+"\t".join(sample_names)+"\n")
-    for event in AS_events:
+    all_events=list(result[0].keys())
+    #Theres an identifier in there to signal which sample, we dont have a psi score for that one.
+    all_events.remove("sample")
+    for event in all_events:
         new_line=event
         for sample in sample_names:
             #find right scores in PSI_dict
