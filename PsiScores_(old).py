@@ -49,7 +49,12 @@ Useage:
     
     #Requires 3 cores for parallelization.
     
-Possible Bugs:
+Notes on this version: (in case we get back to it.)
+    
+    1. The spliced read counts for AA and AD are wrong (i.e. not counted.)
+    2. At the moment this script takes between 8 and 9 seconds to run.
+    
+    
 """
 
 #%% 0.0 Imports
@@ -649,8 +654,10 @@ def PSI_AD(gene, sample, event):
                     ER= sum(normalized_diff)+sum([x for i,x in enumerate(spliced_counters) if i!=(stop_number)]) 
                     PSI=str(round(IR/(IR+ER), 3))
         
-        psi.append(PSI)
         
+        psi.append(PSI)
+    
+    print(sample, event, " spliced ", spliced_counters, "difference reads ", difference_counters)
     #The psi scores could potentially be in a different order than the starts in the events, since we sorted. So lets fix that.
     psi_sorted=[""]*len(stops)
     for s in stops:
