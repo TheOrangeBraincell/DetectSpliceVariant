@@ -84,7 +84,7 @@ def Filter_Reads(read, gene_strand):
     
     if read_strand!=gene_strand:
         skip=True
-        
+    
     return skip
 
 
@@ -252,6 +252,7 @@ def AD(sample, event, read):
 
     #We are in event range, lets process the read.
     #Is it spliced or not
+    read_name=read.query_name
     if re.search(r'\d+M(?:\d+[I,D,S,H])?\d+N(?:\d+[I,D,S,H])?\d+M',read.cigarstring):
         #spliced
         #This is spliced, but its could have insertions and/or deletions around the intron... 
@@ -263,7 +264,7 @@ def AD(sample, event, read):
         #Allow for several splice junctions in one read.
         current_cigar = read.cigarstring
         current_start = int(read.reference_start)
-        read_name=read.query_name
+        
         
         while re.search(r'(\d+)M(\d+)N(\d+)M', current_cigar):
             #assign splice junction variables
@@ -285,20 +286,23 @@ def AD(sample, event, read):
                 continue
             
             #Update counters based on matching stops.
+            match=False
             for stop in stops:
                 #Then the AD stop have to match the exon1_stop
                 if gene_strand=="+":
                     #the coordinates on plus strand are shifted by one, as the exon end is exclusive.
                     if str(stop.split("_")[2])==str(exon1_end-1):
+                        match=True
                         break
                     
                 else:
                     #Then AD stops have to match exon2_starts
                     if str(stop.split("_")[2])==str(exon2_start):
+                        match=True
                         break
             #Update counters for matching stop.
             #The read counts as ER for every stop except the matched.
-            if read_name not in counted[event]["spliced"]:
+            if match==True and read_name not in counted[event]["spliced"]:
                 counted[event]["spliced"].append(read_name)
                 #This counts as an ER count for every stop except the one it matches.
                 #for that one its an IR count.
@@ -320,21 +324,33 @@ def AD(sample, event, read):
         #not spliced reads.
         #We already excluded all reads outside the range of the event
         #So we just need to figure out which stop they belong to.
+        
+        #The read stop defined above includes non matching regions, making the end coordinate not the
+        #coordinate in the reference genome. So we only want M parts.
+        match_length=sum([int(i.strip("M")) for i in re.findall(r'\d+M', read.cigarstring)])
+        read_stop=read_start+match_length
         for i in range(1, len(stops)):
             stop1=int(stops[i-1].split("_")[2])
             stop2=int(stops[i].split("_")[2])
             #Does it overlap with this region, but not get into the next
             if gene_strand=="+":
+                if stop2==151807509 and sample=="S000001" and read_name=="SN587:126:C1PCYACXX:1:1305:3960:86447":
+                        print(read_stop)
+                        print(stop2, stop1)
                 if stop2 >= read_stop > stop1:
-                    #match
-                    match=stops[i]
-                    AS_events[event][match]["IR"]["count_n"]+=1
+                    if read_name not in counted[event]["not"]:
+                        #match
+                        match=stops[i]
+                        AS_events[event][match]["IR"]["count_n"]+=1
+                        counted[event]["not"].append(read_name)
                     break
             else:
                 if stop1 >= read_start > stop2:
-                    #match
-                    match=stops[i-1]
-                    AS_events[event][match]["IR"]["count_n"]+=1
+                    if read_name not in counted[event]["not"]:
+                        #match
+                        match=stops[i-1]
+                        AS_events[event][match]["IR"]["count_n"]+=1
+                        counted[event]["not"].append(read_name)
                     break
 
     return False
@@ -446,9 +462,10 @@ def PSI_for_Sample(sample):
         elif event.startswith("AD"):
             #several PSI scores for one AD event.
             
-            
+            #print(sample, AS_events[event], counted[event])
             #PSI is NAN if there are 10 or less reads.
             total_reads=0
+            print(sample, AS_events[event], counted[event]["not"])
             for stop in AS_events[event]:
                 total_reads+= AS_events[event][stop]["IR"]["count"]+AS_events[event][stop]["IR"]["count_n"]
             
@@ -458,14 +475,15 @@ def PSI_for_Sample(sample):
                     sample_PSI[event+"_"+stop]=PSI 
             else:
                 #The denominator of the PSI fraction is the same for all of the stops in the same ad event. so lets do it first.
-                ER=0
+                sum_ER_IR=0
                 for stop in AS_events[event]:
-                    ER+= AS_events[event][stop]["IR"]["count"]+AS_events[event][stop]["IR"]["count_n"]/AS_events[event][stop]["IR"]["normalize"]
+                    sum_ER_IR+= AS_events[event][stop]["IR"]["count"]+AS_events[event][stop]["IR"]["count_n"]/AS_events[event][stop]["IR"]["normalize"]
                 
-                #Now that we have the ER, we can calculate the PSI for each IR
+                
+                #Now that we have the sum of IRs, we can calculate the PSI for each IR
                 for stop in AS_events[event]:
                     IR=AS_events[event][stop]["IR"]["count"]+AS_events[event][stop]["IR"]["count_n"]/AS_events[event][stop]["IR"]["normalize"]
-                    PSI=str(round(IR/(IR+ER), 3))
+                    PSI=str(round(IR/(sum_ER_IR), 3))
                     sample_PSI[event+"_"+stop]=PSI   
                 
         elif event.startswith("IR"):
