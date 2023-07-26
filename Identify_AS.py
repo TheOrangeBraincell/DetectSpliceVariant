@@ -50,8 +50,7 @@ Useage:
         python gitrepo/Identify_AS.py -o AS_events_ESR1.tsv -n "ESR1" -g ~/MasterProject/Database/hg38_GENCODE39_all.tsv -r ~/MasterProject/Database/hg38_NCBI_all.tsv 
         
         #With coordinates f.e. BRCA1 (neg strand)
-        python gitrepo/Identify_AS.py -o AS_events_BRCA1.tsv -c "chr17:43044295-43170245" -g Database/hg38_GENCODE39_all.tsv -r Database/hg38_NCBI_all.tsv 
-        
+        python ../../gitrepo/Identify_AS.py -o AS_events_BRCA1.tsv -n "BRCA1" -g ~/MasterProject/Database/hg38_GENCODE39_all.tsv -r ~/MasterProject/Database/hg38_NCBI_all.tsv        
        
     
 Possible Bugs:
