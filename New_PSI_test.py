@@ -147,9 +147,33 @@ def PSI_for_Sample(sample):
         else:
             #IR event.
             #dict: {}
-            AS_events[event]={"ER":{"count":0, "reads":[]}, #spliced across
-                                         "IR":{"count":0, "reads":[]}} #overlap reads
+            AS_events[event]={"ER":0,  #spliced across
+                              "IR": {}, #overlap reads
+                              "reads":{"spliced":[], "left":[], "right":[]}}
+            #Note that to add all points to IR, ill have to check them for overlaps with AA/AD events
+            #But the intron coordinates of this we can definitely put in.
+            #we assign left and right based on bigger and smaller, not based on biology.
+            AS_events[event]["IR"][event.split("_")[3]]={"count":0, "side":"left"}
+            AS_events[event]["IR"][event.split("_")[4]]={"count":0, "side":"right"}
             
+            #Check for overlapping AA, AD events.
+            for e in AS_events:
+                if e.startswith("A"):
+                    #check if theres a match:
+                    if e.split("_")[4]== event.split("_")[3]:
+                        #then the point is on the left. there will be more left points.
+                        extra_points=[i for i in list(AS_events.keys()) if i.split("_")[1].startswith(e.split("_")[1])]
+                        #These go into dictionary with left side
+                        for point in extra_points:
+                            AS_events[event]["IR"][point]={"count":0, "side":"left"}
+                        break
+                    elif e.split("_")[4]==event.split("_")[4]:
+                        #then the point is on the right. there will be more right points.
+                        extra_points=[i for i in list(AS_events.keys()) if i.split("_")[1].startswith(e.split("_")[1])]
+                        #These go into dictionary with right side
+                        for point in extra_points:
+                            AS_events[event]["IR"][point]={"count":0, "side":"right"}
+                        break
             
     #open the bam file, and go through the reads.
     samfile=pysam.AlignmentFile(files[sample], 'rb', index_filename=files[sample][0:-1]+"i")
@@ -223,6 +247,7 @@ def PSI_for_Sample(sample):
                     sample_PSI[event+"_"+coord]=PSI 
                 
         elif event.startswith("IR"):
+            
             PSI="NAN"
              
 
@@ -570,8 +595,105 @@ def AA(sample, event, read):
     return False
 
 def IR(sample, event, read):
+    IR_start=int(event.split("_")[3])
+    IR_stop=int(event.split("_")[4])
     
+    #read_information
+    read_start=int(read.reference_start)
+    read_range=sum([int(i) for i in re.findall(r'\d+', read.cigarstring)])
+    read_stop=read_start+read_range
     
+    #If both start and stop of read are before or after IR, then we can go on.
+    if read_start < IR_start and read_stop < IR_start:
+        return False
+    if read_start > IR_stop and read_stop > IR_stop:
+        return False
+    
+    #we are in range. Lets process.
+    current_cigar = read.cigarstring
+    read_name=read.query_name
+    #Spliced or not?
+    if re.search(r'\d+M(?:\d+[I,D,S,H])?\d+N(?:\d+[I,D,S,H])?\d+M',read.cigarstring):
+        #This is spliced, but its could have insertions and/or deletions around the intron... 
+        if not re.search(r'\d+M\d+N\d+M',read.cigarstring):
+            #we save excluded weird reads like this one for the logfile.
+            excluded_reads.add(read_name)
+            #Then this read doesnt need to be processed at all.
+            return True
+        
+        #spliced. then it can only be read across the intron for it to be interesting for us.
+        current_start = read_start
+        #Otherwise we process it as spliced
+        while re.search(r'(\d+)M(\d+)N(\d+)M', current_cigar):
+            #assign splice junction variables
+            junction = re.search(r'(\d+)M(\d+)N(\d+)M', current_cigar)
+            
+            #assign variables to groups.
+            exon1 = int(junction.group(1))
+            intron=int(junction.group(2))
+            exon2=int(junction.group(3))
+            exon1_start = current_start
+            exon1_end = exon1_start+exon1+1  #exclusive
+            exon2_start = exon1_end+intron -1 #inclusive
+            exon2_end=exon2_start+exon2+1
+                
+            #skip alignments with less than 3 matching bases in an exon.
+            if exon1<3 or exon2<3:
+                # update cigar string
+                current_cigar = re.sub(r'^.*?N', 'N', current_cigar).lstrip("N")
+                current_start= exon2_start
+                return False
+            
+            #Number of spliced reads from previous to CE.
+            if exon1_start< IR_start and exon2_end > IR_stop:
+                #count!
+                if read_name not in AS_events[event]["reads"]["spliced"]:
+                    AS_events[event]["ER"]+=1
+                    AS_events[event]["reads"]["spliced"].append(read_name)
+                    #Reads cannot be spliced across and havea pair within the intron,
+                    #so we dont need to check for that.
+                    
+            # update cigar string
+            current_cigar = re.sub(r'^.*?N', 'N', current_cigar).lstrip("N")
+            current_start= exon2_start
+    else:
+        #Not spliced reads
+        #We need to check for every point in IR if the matching part of the 
+        #read overlaps with it.
+        current_start=read_start
+        #Find out coordinates of M part of read.
+        while re.search(r'(\d+)M', current_cigar):
+            #could have several matching regions.
+            match=re.search(r'(\d+)M', current_cigar)
+            match_length=int(match.group(1))
+            #assign variables.
+            before=current_cigar.split("M")[0]
+            #D are positions on ref that are absent in query
+            #I are positions on query that are absent in ref
+            #M are match
+            #S are soft clipped, i.e. not in reference
+            #N should not be here.
+            #Since we are wanting to match to reference coordinates, we add length of part before M together accordingly
+            possible=["I", "D", "S"]
+            current=""
+            before_length=0
+            for i in before:
+                if i in possible:
+                    if i =="D":
+                        before_length+=int(current)
+                    current=""
+                current+=i
+            
+            #match coordinate can be calculated
+            match_start=current_start+before_length
+            match_stop=match_start+match_length
+            #check overlap points.
+            
+            """YOU ARE HERE"""
+                
+            
+        
+        
     return False
 #%% 0.3 Start Timer
 
