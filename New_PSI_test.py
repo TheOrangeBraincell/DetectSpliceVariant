@@ -87,6 +87,7 @@ def Filter_Reads(read, gene_strand):
     
     return skip
 
+
 def PSI_for_Sample(sample):
     #Gene information to open bam file.
     chrom=gene[1]
@@ -160,20 +161,21 @@ def PSI_for_Sample(sample):
             for e in AS_events:
                 if e.startswith("A"):
                     #check if theres a match:
-                    if e.split("_")[4]== event.split("_")[3]:
-                        #then the point is on the left. there will be more left points.
-                        extra_points=[i for i in list(AS_events.keys()) if i.split("_")[1].startswith(e.split("_")[1])]
-                        #These go into dictionary with left side
-                        for point in extra_points:
-                            AS_events[event]["IR"][point]={"count":0, "side":"left"}
-                        break
-                    elif e.split("_")[4]==event.split("_")[4]:
-                        #then the point is on the right. there will be more right points.
-                        extra_points=[i for i in list(AS_events.keys()) if i.split("_")[1].startswith(e.split("_")[1])]
-                        #These go into dictionary with right side
-                        for point in extra_points:
-                            AS_events[event]["IR"][point]={"count":0, "side":"right"}
-                        break
+                    for as_id in AS_events[e]:
+                        if as_id.split("_")[2]== event.split("_")[3]:
+                            #then the point is on the left. there will be more left points.
+                            extra_points=[i.split("_")[2] for i in list(AS_events[e].keys())]
+                            #These go into dictionary with left side
+                            for point in extra_points:
+                                AS_events[event]["IR"][point]={"count":0, "side":"left"}
+                            break
+                        elif as_id.split("_")[2]==event.split("_")[4]:
+                            #then the point is on the right. there will be more right points.
+                            extra_points=[i.split("_")[2] for i in list(AS_events[e].keys())]
+                            #These go into dictionary with right side
+                            for point in extra_points:
+                                AS_events[event]["IR"][point]={"count":0, "side":"right"}
+                            break
             
     #open the bam file, and go through the reads.
     samfile=pysam.AlignmentFile(files[sample], 'rb', index_filename=files[sample][0:-1]+"i")
@@ -200,13 +202,16 @@ def PSI_for_Sample(sample):
                     #The read is invalid all together and does not need to be investigated further.
                     break
             elif event.startswith("AD"):
-                skip=AD(sample, event, read)
+                skip= AD(sample, event, read)
                 if skip==True:
                     #The read is invalid all together and does not need to be investigated further.
                     break
-                
             elif event.startswith("IR"):
-                continue  
+                skip= IR_fun(sample, event, read)
+                if skip==True:
+                    #The read is invalid all together and does not need to be investigated further.
+                    break
+
     #Now we have counted all the reads, we can calculate the PSI scores.
     sample_PSI={"sample":sample}
     for event in AS_events:
@@ -247,10 +252,41 @@ def PSI_for_Sample(sample):
                     sample_PSI[event+"_"+coord]=PSI 
                 
         elif event.startswith("IR"):
+            # if event=="IR_chr6_+_151807504_151807842" and sample=="S000005":
+            #     print(AS_events[event])
+            #if the IR event overlaps with a CE that has psi=1, then the PSI is 0.
+            #go through CE events
+            for e in AS_events:
+                if e.startswith("CE"):
+                    #check coordinates.
+                    #CE start needs to be bigger than intron start, and CE stop needs to be smaller than intron stop.
+                    if int(e.split("_")[3])>int(event.split("_")[3]) and int(e.split("_")[4])<int(event.split("_")[4]):
+                        # print("we have a CE overlap: ", sample, event, e)
+                        # print(sample_PSI[e])
+                        if sample_PSI[e]=="1.0":
+                            PSI="0.0"
+                            # print("we have a CE overlap: ", sample, event, e)
+                            break
+            #total reads:
+            total=0
+            for category in AS_events[event]["reads"]:
+                total+=len(AS_events[event]["reads"][category])
             
-            PSI="NAN"
+            if total<11:
+                PSI="NAN"
+            #If there is no overlap reads, the psi is 0
+            elif len(AS_events[event]["reads"]["right"])==0 and len(AS_events[event]["reads"]["left"])==0:
+                PSI="0"
+            #If the event has overlap reads but only from one side then the psi is NAN.
+            elif len(AS_events[event]["reads"]["right"])==0 or len(AS_events[event]["reads"]["left"])==0:
+                PSI="NAN"
+            #if the IR event has overlap reads from both sides, then the resulting psi is numerical.
+            else:
+                IR=len(AS_events[event]["reads"]["right"])+len(AS_events[event]["reads"]["left"])
+                ER=len(AS_events[event]["reads"]["spliced"])
+                PSI=str(round(IR/(IR+ER), 3))
              
-
+            sample_PSI[event]=PSI
     return sample_PSI
 
 def CE(sample, event, read):
@@ -594,7 +630,7 @@ def AA(sample, event, read):
 
     return False
 
-def IR(sample, event, read):
+def IR_fun(sample, event, read):
     IR_start=int(event.split("_")[3])
     IR_stop=int(event.split("_")[4])
     
@@ -642,9 +678,8 @@ def IR(sample, event, read):
                 # update cigar string
                 current_cigar = re.sub(r'^.*?N', 'N', current_cigar).lstrip("N")
                 current_start= exon2_start
-                return False
             
-            #Number of spliced reads from previous to CE.
+            #Number of spliced reads across IR
             if exon1_start< IR_start and exon2_end > IR_stop:
                 #count!
                 if read_name not in AS_events[event]["reads"]["spliced"]:
@@ -687,14 +722,30 @@ def IR(sample, event, read):
             #match coordinate can be calculated
             match_start=current_start+before_length
             match_stop=match_start+match_length
-            #check overlap points.
-            
-            """YOU ARE HERE"""
+            #check overlap points. The matching part has to overlap with point.
+            for point in AS_events[event]["IR"]:
+                overlap_found=False
+                #The smaller equal/bigger equal depend on what side of the IR the point is.
+                if AS_events[event]["IR"][point]["side"]=="left" and match_start <=int(point) and match_stop>int(point):
+                    #overlap read found.
+                    overlap_found=True
+                if AS_events[event]["IR"][point]["side"]=="right" and match_start < int(point) and match_stop >= int(point):
+                    overlap_found=True
+                if overlap_found==False:
+                    continue
                 
-            
-        
-        
+                #if read is not already counted for this IR, count now.
+                if read_name in AS_events[event]["reads"]["spliced"]:
+                    continue
+                #check if name is already counted for this side.
+                if read_name not in AS_events[event]["reads"][AS_events[event]["IR"][point]["side"]]:
+                    AS_events[event]["IR"][point]["count"]+=1
+                    AS_events[event]["reads"][AS_events[event]["IR"][point]["side"]].append(read_name)
+                    #now that we counted this read, break. 
+                    break
+            current_cigar=current_cigar.split("M")[1]
     return False
+
 #%% 0.3 Start Timer
 
 start_time=time.time()
