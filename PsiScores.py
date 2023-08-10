@@ -1,21 +1,50 @@
 # -*- coding: utf-8 -*-
 """
 Date: Fri Jul 14 08:56:18 2023
-File Name:
+File Name: PsiScores.py
 Author: Mirjam Karlsson-Müller
 
 Description:
-    
+    Takes a table of AS events and scores them for each sample in the input folder, 
+    based on the reads in their bam files.
+
+Abbreviations:
+    AS=     Alternative Splicing
+    CE=     Casette Exon
+    AA=     Alternative Acceptor
+    AD=     Alternative Donor
+    IR=     Intron Retention
     
 List of Functions:
+    Filter_Reads(read, gene_strand): 
+        Basic filtering done for all .bam file entries before processing. Reads with non-primary alignments
+        as well as reads on the wrong strand, are filtered out.
+    
+    PSI_for_Sample(sample):
+        calculates all PSI for a given sample by iterating through the reads and
+        the events and then calling the right PSI function to count the reads for 
+        a type of event. Returns all psi scores for a sample.
+    
+    CE(sample, event, read): 
+        Checks if a read can be counted for a CE event and if so, counts it and saves its name.
+    
+    AA(sample, event, read):
+        Checks if a read can be counted for a AA event and if so, counts it and saves its name.
+    
+    AD(sample, event, read):
+        Checks if a read can be counted for a AD event and if so, counts it and saves its name.
+    
+    IR_fun(sample, event, read):
+        Checks if a read can be counted for a IR event and if so, counts it and saves its name.
     
 Procedure: 
-    1.
-    2.
-    3.
+    1. Read in bam file list, extract sample names.
+    2. Read in AS events, initiate counting dictionary.
+    3. Go through sample (paralellized, 3 at a time) and count/score events.
+    4. Summarize results and write into output.
     
 Useage:
-    
+    python ../../gitrepo/PsiScores.py -i AS_events_ESR1.tsv -o new_ESR1.tsv -s ../bam_file_list.txt -is "Mean 231.467 Standard Deviation 92.8968"
     
 Possible Bugs:
 """
@@ -26,6 +55,7 @@ import argparse
 import re
 import time
 import pysam
+import math
 import multiprocessing as mp
 
 #%% 0.1 argparse
@@ -68,9 +98,15 @@ if args.InsertSize:
 
 def Filter_Reads(read, gene_strand):
     skip=False
+    # if read.query_name=="SN587:126:C1PCYACXX:2:2203:4242:62155":
+    #     print("filtering read")
     #Exclude non-primary alignments
     if read.is_secondary:
         skip=True
+        
+    #If we want to remove duplicate reads, uncomment next paragraph.
+    # if read.is_duplicate:
+    #     skip=True
     
     #Exclude reads on wrong strand
     if read.mate_is_reverse and read.is_read1:
@@ -81,9 +117,11 @@ def Filter_Reads(read, gene_strand):
         read_strand="+"
     elif read.mate_is_forward and read.is_read2:
         read_strand="-"
-    
+
     if read_strand!=gene_strand:
         skip=True
+    # if read.query_name=="SN587:126:C1PCYACXX:2:2203:4242:62155":
+    #     print(skip)
     
     return skip
 
@@ -217,7 +255,7 @@ def PSI_for_Sample(sample):
     for event in AS_events:
         if event.startswith("CE"):
             #PSI is NAN if there are 10 or less reads.
-            if AS_events[event]["IR"]["count"]+AS_events[event]["IR"]["count_n"]+AS_events[event]["ER"]["count"]<11:
+            if AS_events[event]["IR"]["count"]+AS_events[event]["IR"]["count_n"]+AS_events[event]["ER"]["count"]<10:
                 PSI="NAN"
             else:
                 #sum IR, normalize count_n
@@ -234,7 +272,7 @@ def PSI_for_Sample(sample):
             for coord in AS_events[event]:
                 total_reads+= AS_events[event][coord]["IR"]["count"]+AS_events[event][coord]["IR"]["count_n"]
             
-            if total_reads <11:
+            if total_reads <10:
                 PSI="NAN"
                 for coord in AS_events[event]:
                     sample_PSI[event+"_"+coord]=PSI 
@@ -244,7 +282,6 @@ def PSI_for_Sample(sample):
                 for coord in AS_events[event]:
                     sum_ER_IR+= AS_events[event][coord]["IR"]["count"]+AS_events[event][coord]["IR"]["count_n"]/AS_events[event][coord]["IR"]["normalize"]
                 
-                
                 #Now that we have the sum of IRs, we can calculate the PSI for each IR
                 for coord in AS_events[event]:
                     IR=AS_events[event][coord]["IR"]["count"]+AS_events[event][coord]["IR"]["count_n"]/AS_events[event][coord]["IR"]["normalize"]
@@ -252,9 +289,10 @@ def PSI_for_Sample(sample):
                     sample_PSI[event+"_"+coord]=PSI 
                 
         elif event.startswith("IR"):
-            # if event=="IR_chr6_+_151807504_151807842" and sample=="S000005":
-            #     print(AS_events[event])
+            if event=="IR_chr6_+_152061124_152094384" and sample=="S000004":
+                 print(AS_events[event])
             #if the IR event overlaps with a CE that has psi=1, then the PSI is 0.
+            CE_match=False
             #go through CE events
             for e in AS_events:
                 if e.startswith("CE"):
@@ -265,26 +303,28 @@ def PSI_for_Sample(sample):
                         # print(sample_PSI[e])
                         if sample_PSI[e]=="1.0":
                             PSI="0.0"
+                            CE_match=True
                             # print("we have a CE overlap: ", sample, event, e)
                             break
-            #total reads:
-            total=0
-            for category in AS_events[event]["reads"]:
-                total+=len(AS_events[event]["reads"][category])
-            
-            if total<11:
-                PSI="NAN"
-            #If there is no overlap reads, the psi is 0
-            elif len(AS_events[event]["reads"]["right"])==0 and len(AS_events[event]["reads"]["left"])==0:
-                PSI="0"
-            #If the event has overlap reads but only from one side then the psi is NAN.
-            elif len(AS_events[event]["reads"]["right"])==0 or len(AS_events[event]["reads"]["left"])==0:
-                PSI="NAN"
-            #if the IR event has overlap reads from both sides, then the resulting psi is numerical.
-            else:
-                IR=len(AS_events[event]["reads"]["right"])+len(AS_events[event]["reads"]["left"])
-                ER=len(AS_events[event]["reads"]["spliced"])
-                PSI=str(round(IR/(IR+ER), 3))
+            if CE_match==False:
+                #total reads:
+                total=0
+                for category in AS_events[event]["reads"]:
+                    total+=len(AS_events[event]["reads"][category])
+                
+                if total<10:
+                    PSI="NAN"
+                #If there is no overlap reads, the psi is 0
+                elif len(AS_events[event]["reads"]["right"])==0 and len(AS_events[event]["reads"]["left"])==0:
+                    PSI="0.0"
+                #If the event has overlap reads but only from one side then the psi is NAN.
+                elif len(AS_events[event]["reads"]["right"])==0 or len(AS_events[event]["reads"]["left"])==0:
+                    PSI="NAN"
+                #if the IR event has overlap reads from both sides, then the resulting psi is numerical.
+                else:
+                    IR=len(AS_events[event]["reads"]["right"])+len(AS_events[event]["reads"]["left"])
+                    ER=len(AS_events[event]["reads"]["spliced"])
+                    PSI=str(round(IR/(IR+ER), 3))
              
             sample_PSI[event]=PSI
     return sample_PSI
@@ -693,6 +733,11 @@ def IR_fun(sample, event, read):
             current_start= exon2_start
     else:
         #Not spliced reads
+        #Remove reads that have their read pair too far away.
+        insert_confidence=[insert_mean-1.96*(insert_sd/math.sqrt(len(sample_names))),insert_mean+1.96*(insert_sd/math.sqrt(len(sample_names)))]
+        #if distance between reads too far, then this is a sign that the second read is in an exon and in between is a break. So no IR.
+        if read.tlen>insert_confidence[1]:
+            return False
         #We need to check for every point in IR if the matching part of the 
         #read overlaps with it.
         current_start=read_start
