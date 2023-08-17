@@ -121,6 +121,10 @@ for file in vcf_file_list:
             continue
         chrom, position, ID, ref, alt, qual, filt, info, form, sample =line.split("\t")
         genotype=sample.split(":")[-7].strip(" ")
+        
+        #We transform position to 0-based, because thats what everything else in the pipeline has
+        #and python as well
+        position=str(int(position)-1)
         #We only want single point mutations
         if len(alt)>1 or len(ref)>1:
             continue
