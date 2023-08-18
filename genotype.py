@@ -32,7 +32,7 @@ Possible Bugs:
 #%% Imports
 import argparse
 import time
-import pysam
+from subprocess import check_output
 
 #%% 0.1 Argparse
 
@@ -61,36 +61,6 @@ args = parser.parse_args()
 
 #%% 0.2 Functions
 
-def check_read(read):
-    filter_pass=True
-    
-    if read.is_secondary:
-        filter_pass=False
-    
-    if not read.is_mapped:
-        filter_pass=False
-    
-    if read.is_duplicate:
-        filter_pass=False
-    
-    if read.is_qcfail:
-        filter_pass=False
-    
-    if read.query_name in reads_counted:
-        filter_pass=False
-        
-    if filter_pass==True:
-        reads_counted.append(read.query_name)
-        
-    #This also counts read that have an N or a D or I at this position
-    #we only want to count reads that have an M at the variant position.
-    
-    #So either we implement that here. Or we skip that and just use 
-    #subprocess + github
-    
-    
-    return filter_pass
-
 #%% 0.3 Start Timer 
 
 start_time=time.time()
@@ -113,6 +83,8 @@ for sample in sample_names:
     for file in bam_file_list:
         if sample in file:
             files[sample]=file
+
+print("Reading in BAM files: Done! \n", end="\r")
 
 #%% 2. Read in location table
 
@@ -144,7 +116,6 @@ with open(args.input, "r") as infile:
 
 
 for sample in sample_names:
-    
     #iterate through all locations and extract seq depth.
     for key in var_dict:
         if var_dict[key][sample]!="-":
@@ -154,10 +125,15 @@ for sample in sample_names:
         reads_counted=[]
         chrom=key.split("_")[0]
         position=int(key.split("_")[1])
-        bam_file=pysam.AlignmentFile(files[sample], 'rb', index_filename=files[sample][0:-1]+"i")
-        
-        count=bam_file.count(chrom, position, position+1, read_callback=check_read)
-        #print(reads_counted)
+        bam_file=files[sample]
+        #samtools takes 1-based coordinates. And the end is inclusive.
+        region_string=chrom+":"+str(position+1)+"-"+str(position+1)
+        output=check_output("samtools depth -s -r "+region_string+ " " + bam_file, shell=True)
+        #samtools depth returns nothing if the read count is 0.
+        if str(output)=="b''":
+            count=0
+        else:
+            count=int(str(output).split("\\t")[2][0:-3])
         """
         #if we had a readcount threshold it would look smth like this.
         
