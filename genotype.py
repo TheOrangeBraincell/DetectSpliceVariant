@@ -134,17 +134,17 @@ for sample in sample_names:
             count=0
         else:
             count=int(str(output).split("\\t")[2][0:-3])
-        """
+        
         #if we had a readcount threshold it would look smth like this.
         
-        if count>=5:
+        if count>=23:
             var_dict[key][sample]="0/0"
         else:
             var_dict[key][sample]="NE"
         """
         #For now we return read count for these cases.
         var_dict[key][sample]=str(count)
-        
+        """
         
 
 #%% 4. Write Genotype output file
@@ -160,84 +160,3 @@ for location in var_dict:
 
 #%% Close output file
 out.close()
-
-
-# #%% Open location file and output genotype table
-
-# locations=open(args.input, "r")
-# genotypes=open(args.out, "w")
-
-# genotypes.write("#Genotype Table\n")
-# #%% Assign Genotypes
-
-
-# #Iterate through lines in location table as well as genes simultaneously..
-# for line in locations:
-#     if line.startswith("#"):
-#         #headers
-#         genotypes.write(line)
-#         #extract gene name
-#         if line.startswith("#Variant Location"):
-#             gene=line.strip("\n").split(" ")[7]
-#         continue
-#     if line.startswith("Location"):
-#         #Thats the column names. We write those and extract sample names.
-#         sample_names=line.strip("\n").split("\t")[1:]
-#         #Write header for output file + column for gene name!
-#         genotypes.write(line.split("\t")[0]+ "\tGene\t"+"\t".join(sample_names)+"\n")
-#         continue
-#     #Now all that is left is entries. shape: chr_position_ref_(alt)\t samples
-#     #print(line.split("\t")[0].split("_")[0:2])
-#     variant_chrom,variant_position = line.split("\t")[0].split("_")[0:2]
-#     #infostring to use in first column of output.
-#     infostring=line.split("\t")[0]
-#     entries=line.strip("\n").split("\t")[1:]
-    
-#     #Since we checked for the vcf location, to only take variants within the genes range
-#     #we do not need to check for this again.
-
-#     for i in range(0, len(entries)):
-#         if entries[i]=="-":
-#             sample= sample_names[i]
-#             #here goes the read_threshold
-#             entries[i]="WIP"
-#     #write it
-#     genotypes.write(infostring+"\t"+gene+"\t"+"\t".join(entries)+"\n")
-
-
-# print("Genotyping Done!                 \n", end="\r")
-
-
-# #%% Close location file and output file.
-
-# locations.close()
-# genotypes.close()
-
-# print("Files closed!")
-
-#%% End time
-
-print("Run time: {:.2f} seconds.".format(time.time()-start_time))   
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
