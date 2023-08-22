@@ -46,10 +46,10 @@ Useage:
     Instructions:
         Run in command line. For example.
         
-        #with coordinates f.e. Estrogen Receptor
+        #Estrogen Receptor alpha (ESR1)
         python gitrepo/Identify_AS.py -o AS_events_ESR1.tsv -n "ESR1" -g ~/MasterProject/Database/hg38_GENCODE39_all.tsv -r ~/MasterProject/Database/hg38_NCBI_all.tsv 
         
-        #With coordinates f.e. BRCA1 (neg strand)
+        #BRCA1 (neg strand)
         python ../../gitrepo/Identify_AS.py -o AS_events_BRCA1.tsv -n "BRCA1" -g ~/MasterProject/Database/hg38_GENCODE39_all.tsv -r ~/MasterProject/Database/hg38_NCBI_all.tsv        
        
     
@@ -330,7 +330,7 @@ print("Creating Database Dictionary...", end="\r")
 
 #Parallelisation so gencode and refseq are read in at the same time.
 if __name__=="__main__":
-    with Pool() as pool:
+    with Pool(2) as pool:
         #result is a list. i.e. two gene_dicts.
         result=pool.map(database_read, [args.refseq, args.gencode])
 
