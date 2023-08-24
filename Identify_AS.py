@@ -321,7 +321,7 @@ def add_to(events):
 
 start_time=time.time()
 
-
+print("Starting Identify AS script! ")
 #%% 1. Process databases in parallel.
 
 #Initialize

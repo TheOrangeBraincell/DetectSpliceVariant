@@ -73,19 +73,20 @@ args = parser.parse_args()
 
 def Pipeline(gene):
     #Initiate log file for the gene
-    subprocess.call(["touch Log_Files_genes/"+gene+"_log.txt"], shell=True)
+    header="#Log file for "+gene
+    subprocess.run(["echo '"+ header+ "' Log_Files_genes/"+gene+"_log.txt"], shell=True)
     
     #this one needs 2 cores, cause refseq and gencode go parallel.
-    subprocess.call(["python Scripts/Identify_AS.py -o "+ args.out+"/AS_Events/AS_events_"+gene+".tsv -n "+ gene+ " -g "+ args.gencode+" -r " +args.refseq+ " >Log_Files_genes/"+gene+"_log.txt"], shell=True)
+    subprocess.run(["python Scripts/Identify_AS.py -o "+ args.out+"AS_Events/"+gene+"_AS_events.tsv -n "+ gene+ " -g "+ args.gencode+" -r " +args.refseq+ " >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
     
     #PSI, needs 3 cores to run 3 samples at a time. 
-    subprocess.call(["python Scripts/PsiScores.py -i "+args.out+"/AS_Events/AS_events_"+gene+".tsv"+ " -o "+ args.out+"/PSI_Tables/"+gene+"_PSI.tsv"+ " -s bam_file_list.txt -is "+ parameter_string+ " >Log_Files_genes/"+gene+"_log.txt"], shell=True)
+    subprocess.run(["python Scripts/PsiScores.py -i "+args.out+"AS_Events/"+gene+"_AS_events.tsv"+ " -o "+ args.out+"PSI_Tables/"+gene+"_PSI.tsv"+ " -s bam_file_list.txt -is '"+ parameter_string+ "' >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
     
     #vcf parser (1 core)
-    subprocess.call(["python Scripts/vcf_location_table.py -s vcf_file_list.txt -o "+ args.out+"/Variant_Locations/"+gene+"_locations.tsv -n "+ gene + " -r gene_ranges.bed >Log_Files_genes/"+gene+"_log.txt"], shell=True)
+    subprocess.run(["python Scripts/vcf_location_table.py -s vcf_file_list.txt -o "+ args.out+"Variant_Locations/"+gene+"_locations.tsv -n "+ gene + " -r gene_ranges.bed >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
 
     #genotype (1 core)
-    subprocess.call(["python Scripts/genotype.py -s bam_file_list.txt -i " +args.out+"/Variant_Locations/locations_"+gene+".tsv -o " + args.out+"/Genotype_Tables/"+gene+"genotypes.tsv >Log_Files_genes/"+gene+"_log.txt"], shell=True)
+    subprocess.run(["python Scripts/genotype.py -s bam_file_list.txt -i " +args.out+"Variant_Locations/"+gene+"_locations.tsv -o " + args.out+"Genotype_Tables/"+gene+"genotypes.tsv >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
     #Write update into logfile.
     print(("Pipeline complete for gene "+ gene+"\n"))
     print((str(genes.index(gene)+1) + "/" +str(len(genes))+" genes.\n"))
@@ -94,6 +95,7 @@ def Pipeline(gene):
 #%% 0.3 Time Start
 
 start_time=time.time()
+print("Starting Pipeline...")
 
 #%% 0.4 Check if software requirements are given.
 
@@ -148,23 +150,13 @@ if not os.path.isdir(args.out+"/Genotype_Tables"):
 #We also need a folder for the logfiles for the pipeline run for each gene.
 if not os.path.isdir("Log_Files_genes"):
     os.mkdir("Log_Files_genes")
-    
-#Now the structure to save outputs is given.
+#And for Database for insert size
+if not os.path.isdir("Database"):
+    os.mkdir("Database")
 
-"Create necessary files."
-#BAM file list (we dont check if its already there, as it might lead to faulty outputs if the sample list changes)
-#subprocess.call(["find "+ args.bam+ " -name alignment.bam >bam_file_list.txt"], shell=True)
-#VCF list (same as for bam)
-#subprocess.call(["find "+ args.vcf + " -name variants-annotated.vcf >vcf_file_list.txt"], shell=True)
-#Gene ranges file (same as bam and vcf but for genes.)
-#This requires the python file gene_ranges to run.
-#subprocess.run(["python Scripts/gene_ranges.py -g "+ args.gencode+ " -r "+ args.refseq+ " -o gene_ranges.bed -i "+ args.genes], shell=True)
-#Mean insert size and standard deviation
-gff_file=str(args.gff)
-print(gff_file)
-parameter_string=subprocess.check_output(["/bin/bash" ,"Scripts/Insert_Size_Bamfiles.sh" , gff_file], shell=True)
-print(parameter_string)
-quit()
+print("Directories created if needed, input files checked.")
+#Now the structure to save outputs is given
+
 #%% 2. Read in sample and gene names.
 
 sample_names=[]
@@ -177,13 +169,60 @@ with open(args.genes) as gene_file:
     for line in gene_file:
         genes.append(line.strip("\n"))
         
+print("Sample names are read in, genes are read in. ")
+
+#%% 3. Creating needed files.
+
+"Create necessary files."
+#BAM file list (we dont check if its already there, as it might lead to faulty outputs if the sample list changes)
+#find all 
+#subprocess.run(["find "+ args.bam+ " -name alignment.bam >all_bam_file_list.txt"], shell=True)
+#Exclude whats not on the list
+out=open("bam_file_list.txt", "w")
+with open("all_bam_file_list.txt", "r") as all_bam:
+    for line in all_bam:
+        sections=line.split("/")
+        for i in sections:
+            if i.startswith("S00"):
+                #thats the sample name
+                if i in sample_names:
+                    out.write(line)
+                    
+out.close()
+#VCF list (same as for vcf)
+#subprocess.run(["find "+ args.vcf + " -name variants-annotated.vcf >all_vcf_file_list.txt"], shell=True)
+out=open("vcf_file_list.txt", "w")
+with open("all_vcf_file_list.txt", "r") as all_vcf:
+    for line in all_vcf:
+        sections=line.split("/")
+        for i in sections:
+            if i.startswith("S00"):
+                #thats the sample name
+                if i in sample_names:
+                    out.write(line)
+                    break
+out.close()
+#Gene ranges file (same as bam and vcf but for genes.)
+#This requires the python file gene_ranges to run.
+#subprocess.run(["python Scripts/gene_ranges.py -g "+ args.gencode+ " -r "+ args.refseq+ " -o gene_ranges.bed -i "+ args.genes], shell=True)
+#Mean insert size and standard deviation, used to be a script. Now its here.
+#subprocess.run("cat "+args.gff+""" | grep "three_prime_UTR" | awk 'BEGIN{OFS="\t"} ($5-$4>1000) {print($1 OFS $4 OFS $5)}' > Database/3_UTR.bed""", shell=True)
+#subprocess.run("""cat bam_file_list.txt | while read i; do samtools view $i -L Database/3_UTR.bed -h -f PROPER_PAIR -F UNMAP,SECONDARY,QCFAIL --subsample 0.25 | head -n 500000 | samtools stats | grep -A 1 "insert size average"; done > average_insert.txt""", shell=True)
+#subprocess.run("""awk 'BEGIN{FS="\t"} (NR %2 == 1) {s+=$3} (NR %2 == 0) {sd+=$3^2} END{print("Mean", s/(NR/2) , "Standard Deviation", sqrt(sd/(NR/2)))}' average_insert.txt > parameter_string.txt""", shell=True)
+
+with open("parameter_string.txt", "r") as param_file:
+    for line in param_file:
+        if line.startswith("Mean"):
+            parameter_string=line.strip("\n")
+print("Additional Files needed for all genes created.")
+
 
 #%% 3. Start Pipeline for every gene separately, allocate resources.
 
 if __name__ == '__main__':
-    with mp.Pool(math.floor(int(args.n)/3)) as p:
+    with mp.Pool(math.floor(int(args.cores)/3)) as p:
         p.map(Pipeline, genes)
         
 #%% Time End
-
+print("Pipeline Run completed!")
 print("Run time: {:.2f} seconds.".format(time.time()-start_time))

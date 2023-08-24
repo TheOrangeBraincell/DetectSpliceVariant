@@ -33,6 +33,7 @@ Possible Bugs:
 import argparse
 import time
 from subprocess import check_output
+import multiprocessing as mp
 
 #%% 0.1 Argparse
 
@@ -66,7 +67,7 @@ args = parser.parse_args()
 start_time=time.time()
 
 #%% 1. Read in list of bam files. 
-
+print("Starting Genotyping script!")
 print("Reading in BAM files...", end="\r")
 
 bam_file_list=[]
@@ -88,6 +89,7 @@ print("Reading in BAM files: Done! \n", end="\r")
 
 #%% 2. Read in location table
 
+print("Reading in Location Table:...", end="\r")
 out=open(args.out, "w")
 var_dict=dict()
 
@@ -111,22 +113,21 @@ with open(args.input, "r") as infile:
         for i in range(0,len(sample_names)):
             var_dict[location][sample_names[i]]=line.strip("\n").split("\t")[i+1]
 
-
+print("Reading in Location Table: Done! \n", end="\r")
 #%% 3. Go through bam file list, call sequence depth for every variant location.
 
-
-for sample in sample_names:
+def Genotype(sample):
+    print("Finding Genotypes for gene ", sample_names.index(sample), "/", len(sample_names), "...")
+    bam_file=files[sample]
     #iterate through all locations and extract seq depth.
     for key in var_dict:
         if var_dict[key][sample]!="-":
             #We already have a genotype there, no need to check count.
             continue
         
-        reads_counted=[]
         chrom=key.split("_")[0]
         position=int(key.split("_")[1])
-        bam_file=files[sample]
-        #samtools takes 1-based coordinates. And the end is inclusive.
+        #samtools takes 1-based coordinates. And the end is inclusive. So to get one nucleotide, the start and stop are the same.
         region_string=chrom+":"+str(position+1)+"-"+str(position+1)
         output=check_output("samtools depth -s -r "+region_string+ " " + bam_file, shell=True)
         #samtools depth returns nothing if the read count is 0.
@@ -146,6 +147,11 @@ for sample in sample_names:
         var_dict[key][sample]=str(count)
         """
         
+with mp.Pool(3) as pool:
+    #the var_dict just gets updated. So no results need to be merged.
+    result=pool.map(Genotype, sample_names)
+
+print("All genotypes have been assigned!")
 
 #%% 4. Write Genotype output file
 
@@ -156,7 +162,11 @@ for location in var_dict:
         
     out.write(new_line+"\n")
 
-
+print("Genotype script complete!")
 
 #%% Close output file
 out.close()
+
+#%% End time
+
+print("Run time: {:.2f} seconds.".format(time.time()-start_time))  

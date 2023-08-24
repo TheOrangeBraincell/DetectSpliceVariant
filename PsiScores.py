@@ -98,8 +98,6 @@ if args.InsertSize:
 
 def Filter_Reads(read, gene_strand):
     skip=False
-    # if read.query_name=="SN587:126:C1PCYACXX:2:2203:4242:62155":
-    #     print("filtering read")
     #Exclude non-primary alignments
     if read.is_secondary:
         skip=True
@@ -120,9 +118,7 @@ def Filter_Reads(read, gene_strand):
 
     if read_strand!=gene_strand:
         skip=True
-    # if read.query_name=="SN587:126:C1PCYACXX:2:2203:4242:62155":
-    #     print(skip)
-    
+
     return skip
 
 
@@ -289,8 +285,8 @@ def PSI_for_Sample(sample):
                     sample_PSI[event+"_"+coord]=PSI 
                 
         elif event.startswith("IR"):
-            if event=="IR_chr6_+_152061124_152094384" and sample=="S000004":
-                 print(AS_events[event])
+            # if event=="IR_chr6_+_152061124_152094384" and sample=="S000004":
+            #      print(AS_events[event])
             #if the IR event overlaps with a CE that has psi=1, then the PSI is 0.
             CE_match=False
             #go through CE events
@@ -327,6 +323,7 @@ def PSI_for_Sample(sample):
                     PSI=str(round(IR/(IR+ER), 3))
              
             sample_PSI[event]=PSI
+    print("PSI scores calculated for sample ", sample_names.index(sample), "/", len(sample_names))
     return sample_PSI
 
 def CE(sample, event, read):
@@ -794,9 +791,10 @@ def IR_fun(sample, event, read):
 #%% 0.3 Start Timer
 
 start_time=time.time()
-
+print("Starting PSI Script!")
 #%% 1. Read in AS events
 
+print("Reading in AS events...", end="\r")
 #We will save the identifiers in this dict and then add the regions that should be counted.
 AS_events=dict()
 #the counts for AA and AD are saved in a dictionary counted as per group of stops/starts
@@ -830,6 +828,7 @@ with open(args.input, "r") as asfile:
         else:
             AS_events[AS_Type+"_"+Location]=dict()
 
+print("Reading in AS events: Done! \n", end="\r")
 #%% 2. Read in list of bam files. 
 
 print("Reading in BAM files...", end="\r")
@@ -862,7 +861,7 @@ with mp.Pool(3) as pool:
 # for sample in sample_names:
 #     result.append(PSI_for_Sample(sample))
 
-print("results are finished")
+print("PSI scores calculated for all samples!")
 
 with open(args.out, "w") as outfile:
     #write header
@@ -879,7 +878,7 @@ with open(args.out, "w") as outfile:
                     new_line+="\t"+ dictionary[event]
         outfile.write(new_line+"\n")
     
-
+print("PSI script complete!")
 #%% End time
 
 print("Run time: {:.2f} seconds.".format(time.time()-start_time))  

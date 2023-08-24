@@ -75,6 +75,7 @@ args = parser.parse_args()
 #     quit()
 
 #%% Find gene information
+print("Starting vcf parsing script!")
 
 chromosomes=["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","X", "Y", "M"]
 
@@ -87,7 +88,7 @@ with open(args.ranges, "r") as ranges:
             gene_stop=int(gene_stop)
             chrom_index=chromosomes.index(gene_chrom.strip("chr"))
             break
-
+print("Found range of gene, in bed file.")
 #%% Read vcf file
 
 #Read vcf file list off the input file
@@ -225,6 +226,8 @@ for file in vcf_file_list:
         
 print("Reading vcf: Done!            \n",end="\r")
 
+
+print("Sorting variants:...", end="\r")
 sample_names=sorted(sample_names)
 
 #sort variants after chromosome and location.
@@ -249,7 +252,7 @@ for v in sorted_variants:
 variants=sorted_dict
 #delete big thingies.
 del sorted_dict
-
+print("Sorting variants: Done! \n", end="\r")
 #%% Write output file
 
 #For some we might not find anything...
