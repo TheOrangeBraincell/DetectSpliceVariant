@@ -104,7 +104,9 @@ with open(args.input, "r") as infile:
             continue
         if line.startswith("Location"):
             #Write header for output file + column for gene name!
+            sample_names=[i for i in line.strip("\n").split("\t")[1:]]
             out.write(line.split("\t")[0]+ "\tGene\t"+"\t".join(sample_names)+"\n")
+            
             continue
         
         #Else its a variant entry. Save into dictionary.
@@ -117,7 +119,7 @@ print("Reading in Location Table: Done! \n", end="\r")
 #%% 3. Go through bam file list, call sequence depth for every variant location.
 
 def Genotype(sample):
-    print("Finding Genotypes for gene ", sample_names.index(sample), "/", len(sample_names), "...")
+    print("Finding Genotypes for sample ", sample_names.index(sample)+1, "/", len(sample_names), "...")
     bam_file=files[sample]
     #iterate through all locations and extract seq depth.
     for key in var_dict:

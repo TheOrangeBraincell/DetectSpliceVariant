@@ -78,16 +78,21 @@ args = parser.parse_args()
 print("Starting vcf parsing script!")
 
 chromosomes=["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","X", "Y", "M"]
+Gene_found=False
 
 with open(args.ranges, "r") as ranges:
     for line in ranges:
         #chrom\tstart\tstop\tgene\tscore\tstrand\n
-        if line.split("\t")[3]==args.gene:
+        if line.split("\t")[3]==args.gene.strip("\n"):
             gene_chrom, gene_start, gene_stop, gene, score, gene_strand=line.strip("\n").split("\t")
             gene_start=int(gene_start)
             gene_stop=int(gene_stop)
             chrom_index=chromosomes.index(gene_chrom.strip("chr"))
+            Gene_found=True
             break
+if Gene_found==False:
+    print("Gene is not in gene ranges, therefore no coordinates could be found and the pipeline for this gene is stopped.")
+    quit()
 print("Found range of gene, in bed file.")
 #%% Read vcf file
 

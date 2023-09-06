@@ -86,7 +86,7 @@ def Pipeline(gene):
     subprocess.run(["python Scripts/vcf_location_table.py -s vcf_file_list.txt -o "+ args.out+"Variant_Locations/"+gene+"_locations.tsv -n "+ gene + " -r gene_ranges.bed >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
 
     #genotype (1 core)
-    subprocess.run(["python Scripts/genotype.py -s bam_file_list.txt -i " +args.out+"Variant_Locations/"+gene+"_locations.tsv -o " + args.out+"Genotype_Tables/"+gene+"genotypes.tsv >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
+    subprocess.run(["python Scripts/genotype.py -s bam_file_list.txt -i " +args.out+"Variant_Locations/"+gene+"_locations.tsv -o " + args.out+"Genotype_Tables/"+gene+"_genotypes.tsv >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
     #Write update into logfile.
     print(("Pipeline complete for gene "+ gene+"\n"))
     print((str(genes.index(gene)+1) + "/" +str(len(genes))+" genes.\n"))
