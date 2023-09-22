@@ -119,59 +119,31 @@ print("Reading in Location Table: Done! \n", end="\r")
 #%% 3. Go through bam file list, call sequence depth for every variant location.
 
 def Genotype(sample):
-    #create output dictionary
-    sample_dict=dict()
-    sample_dict[sample]=dict()
     print("Finding Genotypes for sample ", sample_names.index(sample)+1, "/", len(sample_names), "...")
     bam_file=files[sample]
-    #iterate through all locations and extract locations we need to get with samtools
-    with open("temp_out_"+sample+".txt", "o") as out:
-        for key in var_dict:
-            if var_dict[key][sample]=="-":
-                out.write(var_dict[key].split("_")[0]+"\t"+str(int(var_dict[key].split("_")[1])+1)+"\t"+str(int(var_dict[key].split("_")[1])+1)+"\n")
+    #iterate through all locations and extract seq depth.
+    for key in var_dict:
+        if var_dict[key][sample]!="-":
+            #We already have a genotype there, no need to check count.
+            continue
         
+        chrom=key.split("_")[0]
+        position=int(key.split("_")[1])
+        #samtools takes 1-based coordinates. And the end is inclusive. So to get one nucleotide, the start and stop are the same.
+        region_string=chrom+":"+str(position+1)+"-"+str(position+1)
+        output=subprocess.check_output("samtools depth -s -r "+region_string+ " " + bam_file, shell=True)
+        #samtools depth returns nothing if the read count is 0.
+        if str(output)=="b''":
+            count=0
+        else:
+            count=int(str(output).split("\\t")[2][0:-3])
         
-    
-    subprocess.run("cat temp_out_"+sample+".txt | while read coordinate; do samtools depth -a -s -r $coordinate " + bam_file+ " > counts_"+sample+".txt", shell=True)
-    
-    #Check output
-    #Put it into sample dict.
-    #Then merge after multiprocessing according to psi
-    #dont forget to delete temp out file and counts file 
-                
-    count=int(str(output).split("\\t")[2][0:-3])
-    if count>=23:
-        result[key][sample]="0/0"
-    else:
-        result[key][sample]="NE"
-
-    return sample_dict
-# def Genotype(sample):
-#     print("Finding Genotypes for sample ", sample_names.index(sample)+1, "/", len(sample_names), "...")
-#     bam_file=files[sample]
-#     #iterate through all locations and extract seq depth.
-#     for key in var_dict:
-#         if var_dict[key][sample]!="-":
-#             #We already have a genotype there, no need to check count.
-#             continue
+        #if we had a readcount threshold it would look smth like this.
         
-#         chrom=key.split("_")[0]
-#         position=int(key.split("_")[1])
-#         #samtools takes 1-based coordinates. And the end is inclusive. So to get one nucleotide, the start and stop are the same.
-#         region_string=chrom+":"+str(position+1)+"-"+str(position+1)
-#         output=check_output("samtools depth -s -r "+region_string+ " " + bam_file, shell=True)
-#         #samtools depth returns nothing if the read count is 0.
-#         if str(output)=="b''":
-#             count=0
-#         else:
-#             count=int(str(output).split("\\t")[2][0:-3])
-        
-#         #if we had a readcount threshold it would look smth like this.
-        
-#         if count>=23:
-#             result[key][sample]="0/0"
-#         else:
-#             result[key][sample]="NE"
+        if count>=23:
+            result[key][sample]="0/0"
+        else:
+            result[key][sample]="NE"
         
 #         """
 #         #For now we return read count for these cases.
@@ -180,8 +152,8 @@ def Genotype(sample):
   
 
 # result=mp.Manager().dict(var_dict)
- with mp.Pool(3) as pool:
-     result=pool.map(Genotype, sample_names)
+with mp.Pool(3) as pool:
+    result=pool.map(Genotype, sample_names)
 
 # print(result)
 
