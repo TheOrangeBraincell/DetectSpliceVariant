@@ -74,7 +74,7 @@ args = parser.parse_args()
 def Pipeline(gene):
     #Initiate log file for the gene
     header="#Log file for "+gene
-    subprocess.run(["echo '"+ header+ "' Log_Files_genes/"+gene+"_log.txt"], shell=True)
+    subprocess.run(["echo '"+ header+ "' > Log_Files_genes/"+gene+"_log.txt"], shell=True)
     
     #this one needs 2 cores, cause refseq and gencode go parallel.
     subprocess.run(["python Scripts/Identify_AS.py -o "+ args.out+"AS_Events/"+gene+"_AS_events.tsv -n "+ gene+ " -g "+ args.gencode+" -r " +args.refseq+ " >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
@@ -132,7 +132,17 @@ if not os.path.isfile(args.refseq):
 if not os.path.isfile(args.gencode):
     print("The GENCODE file does not exist.")
     quit()
-    
+
+"Check if Scripts folder is here and all scripts are present"
+if not os.path.isdir("/Scripts"):
+    print("The Scripts directory with the parts of the pipeline is missing.")
+    quit()
+else:
+    #Check for every script needed.
+    #gene_ranges.py
+    #Identify_AS.py
+    #Psi_Scores.py
+    #
 
 "Check for output directories"
 if not os.path.isdir(args.out):
@@ -147,6 +157,8 @@ if not os.path.isdir(args.out+"/Variant_Locations"):
     os.mkdir(args.out+"/Variant_Locations")
 if not os.path.isdir(args.out+"/Genotype_Tables"):
     os.mkdir(args.out+"/Genotype_Tables")
+if not os.path.isdir(args.out+"/Read_Depths"):
+    os.mkdir(args.out+"/Read_Depths")
 #We also need a folder for the logfiles for the pipeline run for each gene.
 if not os.path.isdir("Log_Files_genes"):
     os.mkdir("Log_Files_genes")
