@@ -12,9 +12,8 @@ List of Functions:
     Pipeline(gene): Runs entire pipeline for one gene.    
     
 Useage:
-    #Eventually run on Bianca with sbatch script.
     
-    #But if run directly from console use:
+    #run directly from console use:
     
 python ../gitrepo/Run_Pipeline.py -s sample_file.txt -g genes.txt -o Outputs_Pipeline/ -gc ~/MasterProject/Database/hg38_GENCODE39_all.tsv -rs ~/MasterProject/Database/hg38_NCBI_all.tsv -vcf ~/Sample_Data -bam ~/Sample_Data -gff ~/MasterProject/Database/gencode.v39.annotation.gff3 --cores 6
     
@@ -72,21 +71,28 @@ args = parser.parse_args()
 #%% 0.2 Functions
 
 def Pipeline(gene):
+    #Run bash script with all subprocesses for the entire pipeline in it.
+    subprocess.run(["./Scripts/Run_Pipeline.sh " +gene+ " " +args.out +" "+ args.refseq + " " + args.gencode +" " + parameter_string])
+    """
     #Initiate log file for the gene
     header="#Log file for "+gene
     subprocess.run(["echo '"+ header+ "' > Log_Files_genes/"+gene+"_log.txt"], shell=True)
     
     #this one needs 2 cores, cause refseq and gencode go parallel.
     subprocess.run(["python Scripts/Identify_AS.py -o "+ args.out+"AS_Events/"+gene+"_AS_events.tsv -n "+ gene+ " -g "+ args.gencode+" -r " +args.refseq+ " >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
+    #Because AS needs only 2 cores, and vcf needs 1, we can run those simultaneously.
+    #vcf parser (1 core)
+    subprocess.run(["python Scripts/vcf_location_table.py -s vcf_file_list.txt -o "+ args.out+"Variant_Locations/"+gene+"_locations.tsv -n "+ gene + " -r gene_ranges.bed >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
     
     #PSI, needs 3 cores to run 3 samples at a time. 
     subprocess.run(["python Scripts/PsiScores.py -i "+args.out+"AS_Events/"+gene+"_AS_events.tsv"+ " -o "+ args.out+"PSI_Tables/"+gene+"_PSI.tsv"+ " -s bam_file_list.txt -is '"+ parameter_string+ "' >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
     
-    #vcf parser (1 core)
-    subprocess.run(["python Scripts/vcf_location_table.py -s vcf_file_list.txt -o "+ args.out+"Variant_Locations/"+gene+"_locations.tsv -n "+ gene + " -r gene_ranges.bed >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
-
-    #genotype (1 core)
-    subprocess.run(["python Scripts/genotype.py -s bam_file_list.txt -i " +args.out+"Variant_Locations/"+gene+"_locations.tsv -o " + args.out+"Genotype_Tables/"+gene+"_genotypes.tsv >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
+    #genotype (3 cores)
+    subprocess.run(["./Scripts/Read_Depth.sh " + gene])
+    #wait, then read read depth table off.
+    subprocess.run(["python genotype.py -i " + gene+ "_read_depth.tsv -o " + args.out+"Genotype_Tables/"+gene+"_genotypes.tsv"])
+    #subprocess.run(["python Scripts/genotype.py -s bam_file_list.txt -i " +args.out+"Variant_Locations/"+gene+"_locations.tsv -o " + args.out+"Genotype_Tables/"+gene+"_genotypes.tsv >>Log_Files_genes/"+gene+"_log.txt"], shell=True)
+    """
     #Write update into logfile.
     print(("Pipeline complete for gene "+ gene+"\n"))
     print((str(genes.index(gene)+1) + "/" +str(len(genes))+" genes.\n"))
@@ -140,9 +146,32 @@ if not os.path.isdir("/Scripts"):
 else:
     #Check for every script needed.
     #gene_ranges.py
+    if not os.path.isfile("/Scripts/gene_ranges.py"):
+        print("The gene_ranges.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
     #Identify_AS.py
-    #Psi_Scores.py
-    #
+    if not os.path.isfile("/Scripts/Identify_AS.py"):
+        print("Identify_AS.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+    
+    #PsiScores.py
+    if not os.path.isfile("/Scripts/PsiScores.py"):
+        print("The PsiScores.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+    
+    #genotype.py
+    if not os.path.isfile("/Scripts/genotype.py"):
+        print("The genotype.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+    
+    #Run_Pipeline.sh
+    if not os.path.isfile("/Scripts/Run_Pipeline.sh"):
+        print("The Run_Pipeline.sh script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+    
+    #Read_Depth.sh
+    if not os.path.isfile("/Scripts/Read_Depth.sh"):
+        print("The Read_Depth.sh script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+    
+    #vcf_location_table.py
+    if not os.path.isfile("/Scripts/vcf_location_table.py"):
+        print("The vcf_location_table.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+    
 
 "Check for output directories"
 if not os.path.isdir(args.out):
