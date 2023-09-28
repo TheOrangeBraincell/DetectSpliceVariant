@@ -21,12 +21,12 @@ rm temp_AS_${1}.txt
 rm temp_Var_${1}.txt 
 
 # Now Psiscores, this one uses 3 cores as is, so the genotypes have to wait.
-python Scripts/PsiScores.py -i ${2}AS_Events/${1}_AS_events.tsv -o ${2}PSI_Tables/${1}_PSI.tsv -s bam_file_list.txt -is $5 >> Log_Files_genes/${1}_log.txt
+python Scripts/PsiScores.py -i ${2}AS_Events/${1}_AS_events.tsv -o ${2}PSI_Tables/${1}_PSI.tsv -s bam_file_list.txt -is "${5}" >> Log_Files_genes/${1}_log.txt
 
 #When that one is done we do genotypes.
 #First Read depth script to make read depth tables.
-./Scripts/Read_Depth.sh $1 ${2}Read_Depth_Tables/${1}_read_depth.tsv
+./Scripts/bedcov.sh $1 bam_file_list.txt $2
 #When that one is done, we need to read off the read depth table to generate the genotypes.
-python genotype.py
+python Scripts/genotype.py -v ${2}Variant_Locations/${1}_locations.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1
 
 

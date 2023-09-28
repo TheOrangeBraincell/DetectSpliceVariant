@@ -72,7 +72,7 @@ args = parser.parse_args()
 
 def Pipeline(gene):
     #Run bash script with all subprocesses for the entire pipeline in it.
-    subprocess.run(["./Scripts/Run_Pipeline.sh " +gene+ " " +args.out +" "+ args.refseq + " " + args.gencode +" " + parameter_string])
+    subprocess.run(["./Scripts/Run_Pipeline.sh " +gene+ " " +args.out +" "+ args.refseq + " " + args.gencode +" '" + parameter_string+"' "], shell=True)
     """
     #Initiate log file for the gene
     header="#Log file for "+gene
@@ -140,38 +140,39 @@ if not os.path.isfile(args.gencode):
     quit()
 
 "Check if Scripts folder is here and all scripts are present"
-if not os.path.isdir("/Scripts"):
+if not os.path.isdir("./Scripts"):
     print("The Scripts directory with the parts of the pipeline is missing.")
     quit()
 else:
     #Check for every script needed.
     #gene_ranges.py
-    if not os.path.isfile("/Scripts/gene_ranges.py"):
+    if not os.path.isfile("./Scripts/gene_ranges.py"):
         print("The gene_ranges.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+        quit()
     #Identify_AS.py
-    if not os.path.isfile("/Scripts/Identify_AS.py"):
+    if not os.path.isfile("./Scripts/Identify_AS.py"):
         print("Identify_AS.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
-    
+        quit()
     #PsiScores.py
-    if not os.path.isfile("/Scripts/PsiScores.py"):
+    if not os.path.isfile("./Scripts/PsiScores.py"):
         print("The PsiScores.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
-    
+        quit()
     #genotype.py
-    if not os.path.isfile("/Scripts/genotype.py"):
+    if not os.path.isfile("./Scripts/genotype.py"):
         print("The genotype.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
-    
+        quit()
     #Run_Pipeline.sh
-    if not os.path.isfile("/Scripts/Run_Pipeline.sh"):
+    if not os.path.isfile("./Scripts/Run_Pipeline.sh"):
         print("The Run_Pipeline.sh script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
-    
+        quit()
     #Read_Depth.sh
-    if not os.path.isfile("/Scripts/Read_Depth.sh"):
-        print("The Read_Depth.sh script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
-    
+    if not os.path.isfile("./Scripts/bedcov.sh"):
+        print("The bedcov.sh script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+        quit()
     #vcf_location_table.py
-    if not os.path.isfile("/Scripts/vcf_location_table.py"):
+    if not os.path.isfile("./Scripts/vcf_location_table.py"):
         print("The vcf_location_table.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
-    
+        quit()
 
 "Check for output directories"
 if not os.path.isdir(args.out):
@@ -186,8 +187,8 @@ if not os.path.isdir(args.out+"/Variant_Locations"):
     os.mkdir(args.out+"/Variant_Locations")
 if not os.path.isdir(args.out+"/Genotype_Tables"):
     os.mkdir(args.out+"/Genotype_Tables")
-if not os.path.isdir(args.out+"/Read_Depths"):
-    os.mkdir(args.out+"/Read_Depths")
+if not os.path.isdir(args.out+"/Read_Depth"):
+    os.mkdir(args.out+"/Read_Depth")
 #We also need a folder for the logfiles for the pipeline run for each gene.
 if not os.path.isdir("Log_Files_genes"):
     os.mkdir("Log_Files_genes")
@@ -217,7 +218,7 @@ print("Sample names are read in, genes are read in. ")
 "Create necessary files."
 #BAM file list (we dont check if its already there, as it might lead to faulty outputs if the sample list changes)
 #find all 
-#subprocess.run(["find "+ args.bam+ " -name alignment.bam >all_bam_file_list.txt"], shell=True)
+subprocess.run(["find "+ args.bam+ " -name alignment.bam >all_bam_file_list.txt"], shell=True)
 #Exclude whats not on the list
 out=open("bam_file_list.txt", "w")
 with open("all_bam_file_list.txt", "r") as all_bam:
@@ -231,7 +232,7 @@ with open("all_bam_file_list.txt", "r") as all_bam:
                     
 out.close()
 #VCF list (same as for vcf)
-#subprocess.run(["find "+ args.vcf + " -name variants-annotated.vcf >all_vcf_file_list.txt"], shell=True)
+subprocess.run(["find "+ args.vcf + " -name variants-annotated.vcf >all_vcf_file_list.txt"], shell=True)
 out=open("vcf_file_list.txt", "w")
 with open("all_vcf_file_list.txt", "r") as all_vcf:
     for line in all_vcf:
@@ -245,11 +246,11 @@ with open("all_vcf_file_list.txt", "r") as all_vcf:
 out.close()
 #Gene ranges file (same as bam and vcf but for genes.)
 #This requires the python file gene_ranges to run.
-#subprocess.run(["python Scripts/gene_ranges.py -g "+ args.gencode+ " -r "+ args.refseq+ " -o gene_ranges.bed -i "+ args.genes], shell=True)
+subprocess.run(["python Scripts/gene_ranges.py -g "+ args.gencode+ " -r "+ args.refseq+ " -o gene_ranges.bed -i "+ args.genes], shell=True)
 #Mean insert size and standard deviation, used to be a script. Now its here.
-#subprocess.run("cat "+args.gff+""" | grep "three_prime_UTR" | awk 'BEGIN{OFS="\t"} ($5-$4>1000) {print($1 OFS $4 OFS $5)}' > Database/3_UTR.bed""", shell=True)
-#subprocess.run("""cat bam_file_list.txt | while read i; do samtools view $i -L Database/3_UTR.bed -h -f PROPER_PAIR -F UNMAP,SECONDARY,QCFAIL --subsample 0.25 | head -n 500000 | samtools stats | grep -A 1 "insert size average"; done > average_insert.txt""", shell=True)
-#subprocess.run("""awk 'BEGIN{FS="\t"} (NR %2 == 1) {s+=$3} (NR %2 == 0) {sd+=$3^2} END{print("Mean", s/(NR/2) , "Standard Deviation", sqrt(sd/(NR/2)))}' average_insert.txt > parameter_string.txt""", shell=True)
+subprocess.run("cat "+args.gff+""" | grep "three_prime_UTR" | awk 'BEGIN{OFS="\t"} ($5-$4>1000) {print($1 OFS $4 OFS $5)}' > Database/3_UTR.bed""", shell=True)
+subprocess.run("""cat bam_file_list.txt | while read i; do samtools view $i -L Database/3_UTR.bed -h -f PROPER_PAIR -F UNMAP,SECONDARY,QCFAIL --subsample 0.25 | head -n 500000 | samtools stats | grep -A 1 "insert size average"; done > average_insert.txt""", shell=True)
+subprocess.run("""awk 'BEGIN{FS="\t"} (NR %2 == 1) {s+=$3} (NR %2 == 0) {sd+=$3^2} END{print("Mean", s/(NR/2) , "Standard Deviation", sqrt(sd/(NR/2)))}' average_insert.txt > parameter_string.txt""", shell=True)
 
 with open("parameter_string.txt", "r") as param_file:
     for line in param_file:
@@ -257,6 +258,7 @@ with open("parameter_string.txt", "r") as param_file:
             parameter_string=line.strip("\n")
 print("Additional Files needed for all genes created.")
 
+#print(parameter_string)
 
 #%% 3. Start Pipeline for every gene separately, allocate resources.
 

@@ -59,6 +59,7 @@ args = parser.parse_args()
 #%% 0.3 Start Timer
 
 start_time=time.time()
+print("Running gene_ranges.py.")
 
 #%% 1. Read in input file into list.
 

@@ -85,6 +85,8 @@ args = parser.parse_args()
 
 
 #If we need to calculate scores for intron retention, we require an average insert size between the reads.
+print(args.InsertSize)
+
 if args.InsertSize:
     try:
         insert_mean=float(args.InsertSize.split(" ")[1])
