@@ -90,95 +90,96 @@ for gene in genes:
     print(gene, counter)
     counter+=1
     variant_found=False
-    while variant_found==False:
-        for file in vcf_file_list:
-            if variant_found==True:
-                break
-            with open(file, "r") as vcf:
-                for line in vcf:
-                    #Skip headers
-                    if line.startswith("#"):
+    for file in vcf_file_list:
+        if variant_found==True:
+            print("breaking ", gene)
+            break
+        with open(file, "r") as vcf:
+            for line in vcf:
+                #Skip headers
+                if line.startswith("#"):
+                    continue
+                chrom, position, ID, ref, alt, qual, filt, info, form, sample =line.split("\t")
+                genotype=sample.split(":")[-7].strip(" ")
+                
+                #We transform position to 0-based, because thats what everything else in the pipeline has
+                #and python as well
+                position=str(int(position)-1)
+                #We only want single point mutations
+                if len(alt)>1 or len(ref)>1:
+                    continue
+                #Check if inside gene range. we can assume that the chromosomes at least are sorted by appearance. Which means if we are at a chromosome after the one we look for, 
+                #we can stop reading the file.
+                if chrom != genes[gene][0]:
+                    #Theres names given to parts where we arent sure what chromosomes they belong to. Those wont be in the list.
+                    #But we also dont want them. So we skip those too.
+                    if chrom.strip("chr") not in chromosomes:
                         continue
-                    chrom, position, ID, ref, alt, qual, filt, info, form, sample =line.split("\t")
-                    genotype=sample.split(":")[-7].strip(" ")
-                    
-                    #We transform position to 0-based, because thats what everything else in the pipeline has
-                    #and python as well
-                    position=str(int(position)-1)
-                    #We only want single point mutations
-                    if len(alt)>1 or len(ref)>1:
-                        continue
-                    #Check if inside gene range. we can assume that the chromosomes at least are sorted by appearance. Which means if we are at a chromosome after the one we look for, 
-                    #we can stop reading the file.
-                    if chrom != genes[gene][0]:
-                        #Theres names given to parts where we arent sure what chromosomes they belong to. Those wont be in the list.
-                        #But we also dont want them. So we skip those too.
-                        if chrom.strip("chr") not in chromosomes:
-                            continue
-                        else:
-                            if chrom_index<chromosomes.index(chrom.strip("chr")):
-                                break
-                            else:
-                                continue
-                        
                     else:
-                        if int(position)< genes[gene][1]:
-                            continue
-                        elif int(position)> genes[gene][2]:
-                            #print(position)
+                        if chrom_index<chromosomes.index(chrom.strip("chr")):
                             break
-                    
-                    "Now filter the entries."
-                    #Keep values with MSI<7
-                    if re.search(r"MSI=(\d+);", info):
-                        if int(re.search(r"MSI=(\d+);", info).group(1))>=7:
+                        else:
                             continue
-                    else:
-                        continue
                     
-                    #print("line 104")
-                    #Keep values with HMPOL<6
-                    if re.search(r"HMPOL=(\d+);", info):
-                        if int(re.search(r"HMPOL=(\d+);", info).group(1))>=6:
-                            continue
-                    else:
+                else:
+                    if int(position)< genes[gene][1]:
                         continue
-                    
-                    #print("line 111")
-                    #Keep entries with GC_cont < 78%
-                    if re.search(r"GC_CONT=(0\.\d+);", info):
-                        if float(re.search(r"GC_CONT=(0\.\d+);", info).group(1))>=0.78:
-                            continue
-                    else:
+                    elif int(position)> genes[gene][2]:
+                        #print(position)
+                        break
+                
+                "Now filter the entries."
+                #Keep values with MSI<7
+                if re.search(r"MSI=(\d+);", info):
+                    if int(re.search(r"MSI=(\d+);", info).group(1))>=7:
                         continue
-                    
-                    #print("line 118")
-                    #Keep variant depth >=5
-                    if re.search(r"VD=(\d+);", info):
-                        if int(re.search(r"VD=(\d+);", info).group(1))<5:
-                            continue
-                    else:
+                else:
+                    continue
+                
+                #print("line 104")
+                #Keep values with HMPOL<6
+                if re.search(r"HMPOL=(\d+);", info):
+                    if int(re.search(r"HMPOL=(\d+);", info).group(1))>=6:
                         continue
-                    
-                    #print("line 125")
-                    #Is a flag, so it will only be there if it applies.
-                    if re.search(r"low_complexity_region", info):
+                else:
+                    continue
+                
+                #print("line 111")
+                #Keep entries with GC_cont < 78%
+                if re.search(r"GC_CONT=(0\.\d+);", info):
+                    if float(re.search(r"GC_CONT=(0\.\d+);", info).group(1))>=0.78:
                         continue
-                    
-                    #print("line 129")
-                    #6th column, filter bad quality reads.
-                    if qual=="." or float(qual)<55:
+                else:
+                    continue
+                
+                #print("line 118")
+                #Keep variant depth >=5
+                if re.search(r"VD=(\d+);", info):
+                    if int(re.search(r"VD=(\d+);", info).group(1))<5:
                         continue
-                    #print("line 133")
-                    
-                    if re.search(r"ucsc_rep=([a-z]+);", info):
-                        #if re.search(r"ucsc_rep=([a-z]+);", info).group(1)=="segdup":
-                        continue
-        
-                    #If we made it here, then the variant passed filtering for this sample.
-                    variant_found=True
-                    out.write(gene+"\n")
-                    break
+                else:
+                    continue
+                
+                #print("line 125")
+                #Is a flag, so it will only be there if it applies.
+                if re.search(r"low_complexity_region", info):
+                    continue
+                
+                #print("line 129")
+                #6th column, filter bad quality reads.
+                if qual=="." or float(qual)<55:
+                    continue
+                #print("line 133")
+                
+                if re.search(r"ucsc_rep=([a-z]+);", info):
+                    #if re.search(r"ucsc_rep=([a-z]+);", info).group(1)=="segdup":
+                    continue
+    
+                #If we made it here, then the variant passed filtering for this sample.
+                variant_found=True
+                print("variant found.", gene)
+                out.write(gene+"\n")
+                break
 
 
 
