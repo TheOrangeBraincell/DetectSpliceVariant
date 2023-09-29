@@ -32,11 +32,10 @@ from shutil import which
 
 #%% 0.1 Argparse
 
-parser = argparse.ArgumentParser(prog='Score Alternative Splicing',
+parser = argparse.ArgumentParser(prog='Run DetectSpliceVariants',
                                  usage='',
-                                 description="""Creates
-                                 a table with the PSI scores supporting said event
-                                 per sample in sample folder.""")
+                                 description="""Initializes Pipeline run to find variants associated
+                                 with alternative splicing.""")
 
 parser.add_argument('--samples', '-s', required=True,
                     help="""file containing the names of all samples that the pipeline is to be run for.
