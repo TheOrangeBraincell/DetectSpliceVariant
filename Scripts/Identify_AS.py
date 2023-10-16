@@ -338,6 +338,7 @@ if __name__=="__main__":
 gene_dict=merge_nested_dict(result)
 
 print("Creating Database Dictionary: Done! \n", end="\r")
+print(gene_dict)
 
 #Save gene range and other information for later.
 starts=[]

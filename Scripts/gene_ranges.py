@@ -17,7 +17,7 @@ Procedure:
     3. Write output file.
     
 Useage:
-    python gitrepo/gene_ranges.py -g ~/MasterProject/Database/hg38_GENCODE39_all.tsv -r ~/MasterProject/Database/hg38_NCBI_all.tsv -o gene_ranges.bed -i test_genes.txt 
+    python gitrepo/Scripts/gene_ranges.py -g Database/GENCODE39.tsv -r Database/RefSeq.tsv -o test_ranges.txt -i test_genes.txt
     
 Possible Bugs:
 """
@@ -80,20 +80,16 @@ for file in [args.gencode, args.refseq]:
     with open(file, "r") as infile:
         for line in infile:
             # To exclude potential title lines/empty lines, formatting mistakes
-            # Only takes chr[] and chr[]_random lines, in accordance with bam.
-            if re.search(r"(.+)\t(?:([a-z]{3}[X,M,Y]?\d*)|([a-z]{3}[X,M,Y]?\d*)"
-                         r".+_random)\t(\-?\+?)\t(\d+)\t(\d+)\t(\d+)\t([\d,]+)"
-                         r"\t([\d,]+)\t(.+)", line):
+            if re.search(r".+\t([a-z]{3}[X,M,Y]?\d*).*\t(\-?\+?)\t(\d+)\t(\d+)\t\d+\t\d+\t\d+\t[\d,]+\t[\d,]+\t(.+)", line):
                 # specify groups.
-                entry = re.search(r"(.+)\t([a-z]{3}[X,M,Y]?\d*).*\t"
-                             r"(\-?\+?)\t(\d+)\t(\d+)\t(\d+)\t([\d,]+)"
-                             r"\t([\d,]+)\t(.+)", line)
+                entry = re.search(r".+\t([a-z]{3}[X,M,Y]?\d*).*\t(\-?\+?)\t(\d+)\t(\d+)\t\d+\t\d+\t\d+\t[\d,]+\t[\d,]+\t(.+)", line)
                 #Assign variables to groups
-                chrom=entry.group(2)
-                strand=entry.group(3)
-                start= entry.group(4)
-                stop=entry.group(5)
-                gene_name=entry.group(9)
+                chrom=entry.group(1)
+                #transcript start and stop
+                strand=entry.group(2)
+                start= entry.group(3)
+                stop=entry.group(4)
+                gene_name=entry.group(5)
                 
                 #If the gene name is not in the gene list, we dont need it.
                 if gene_name not in gene_list:
