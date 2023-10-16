@@ -47,7 +47,7 @@ Useage:
         Run in command line. For example.
         
         #Estrogen Receptor alpha (ESR1)
-        python gitrepo/Identify_AS.py -o AS_events_ESR1.tsv -n "ESR1" -g ~/MasterProject/Database/hg38_GENCODE39_all.tsv -r ~/MasterProject/Database/hg38_NCBI_all.tsv 
+        python ../../gitrepo/Scripts/Identify_AS.py -o test_ESR1.tsv -n "ESR1" -g ../../Database/GENCODE39.tsv -r ../../Database/RefSeq.tsv
         
         #BRCA1 (neg strand)
         python ../../gitrepo/Identify_AS.py -o AS_events_BRCA1.tsv -n "BRCA1" -g ~/MasterProject/Database/hg38_GENCODE39_all.tsv -r ~/MasterProject/Database/hg38_NCBI_all.tsv        
@@ -104,13 +104,9 @@ def database_read(file):
         for line in infile:
             # To exclude potential title lines/empty lines, formatting mistakes
             # Only takes chr[] and chr[]_random lines, in accordance with bam.
-            if re.search(r"(.+)\t(?:([a-z]{3}[X,M,Y]?\d*)|([a-z]{3}[X,M,Y]?\d*)"
-                         r".+_random)\t(\-?\+?)\t(\d+)\t(\d+)\t(\d+)\t([\d,]+)"
-                         r"\t([\d,]+)\t(.+)", line):
+            if re.search(r"(.+)\t([a-z]{3}[X,M,Y]?\d*).*\t(\-?\+?)\t(\d+)\t(\d+)\t\d+\t\d+\t(\d+)\t([\d,]+)\t([\d,]+)\t(.+)", line):
                 # specify groups.
-                entry = re.search(r"(.+)\t([a-z]{3}[X,M,Y]?\d*).*\t"
-                             r"(\-?\+?)\t(\d+)\t(\d+)\t(\d+)\t([\d,]+)"
-                             r"\t([\d,]+)\t(.+)", line)
+                entry = re.search(r"(.+)\t([a-z]{3}[X,M,Y]?\d*).*\t(\-?\+?)\t(\d+)\t(\d+)\t\d+\t\d+\t(\d+)\t([\d,]+)\t([\d,]+)\t(.+)", line)
                 #Assign variables to groups
                 trans_ID=entry.group(1)
                 chrom=entry.group(2)
@@ -338,7 +334,7 @@ if __name__=="__main__":
 gene_dict=merge_nested_dict(result)
 
 print("Creating Database Dictionary: Done! \n", end="\r")
-print(gene_dict)
+#print(gene_dict)
 
 #Save gene range and other information for later.
 starts=[]
