@@ -15,7 +15,7 @@ Procedure:
     3.
     
 Useage:
-    
+    python ../gitrepo/Scripts/utr_variants.py -v ESR1_locations.tsv -o no_utr_locations.tsv -n ESR1 -g ../Database/GENCODE39.tsv -r ../Database/RefSeq.tsv
     
 Possible Bugs:
 """
@@ -59,18 +59,14 @@ def database_read(file):
         for line in infile:
             # To exclude potential title lines/empty lines, formatting mistakes
             # Only takes chr[] and chr[]_random lines, in accordance with bam.
-            if re.search(r"(.+)\t(?:([a-z]{3}[X,M,Y]?\d*)|([a-z]{3}[X,M,Y]?\d*)"
-                         r".+_random)\t(\-?\+?)\t(\d+)\t(\d+)\t(\d+)\t([\d,]+)"
-                         r"\t([\d,]+)\t(.+)", line):
+            if re.search(r"(.+)\t([a-z]{3}[X,M,Y]?\d*).*\t(\-?\+?)\t(\d+)\t(\d+)\t(\d+)\t(\d+)\t(\d+)\t([\d,]+)\t([\d,]+)\t(.+)", line):
                 # specify groups.
-                entry = re.search(r"(.+)\t([a-z]{3}[X,M,Y]?\d*).*\t"
-                             r"(\-?\+?)\t(\d+)\t(\d+)\t(\d+)\t([\d,]+)"
-                             r"\t([\d,]+)\t(.+)", line)
+                entry = re.search(r"(.+)\t([a-z]{3}[X,M,Y]?\d*).*\t(\-?\+?)\t(\d+)\t(\d+)\t(\d+)\t(\d+)\t(\d+)\t([\d,]+)\t([\d,]+)\t(.+)", line)
                 #Assign variables to groups
                 trans_ID=entry.group(1)
                 chrom=entry.group(2)
+                gene_name=entry.group(11)
                 strand=entry.group(3)
-                gene_name=entry.group(9)
                 
                 #Check if transcript belongs to gene in question, if not skip. 
                 if gene_name!= args.gene:
@@ -89,20 +85,20 @@ def database_read(file):
                         if gene_stop<int(entry.group(5)):
                             gene_stop=int(entry.group(5))
                 
-                """For this we need all exon coordinates per transcript. 
-                First regardless of strand."""
-                
-                
-                number_exons=int(entry.group(6))
-                exon_smaller=entry.group(7).split(",")[0:-1]
-                exon_bigger=entry.group(8).split(",")[0:-1]
-                gene_name=entry.group(9)
                 
                 #Add transcript ID to gene dictionary.
                 gene_dict[trans_ID]=dict()
-                #add cds start and stop
-                gene_dict[trans_ID]["CDS"]=[line.split("\t")[6],line.split("\t")[7]]
-                
+                trans_coord=[entry.group(4), entry.group(5)]
+                cds_coord=[entry.group(6), entry.group(7)]
+                gene_dict[trans_ID]["trans"]=trans_coord
+                gene_dict[trans_ID]["cds"]=cds_coord
+                gene_dict[trans_ID]["strand"]=strand                
+                """For this we need all exon coordinates per transcript. 
+                First regardless of strand."""
+
+                number_exons=int(entry.group(8))
+                exon_smaller=entry.group(9).split(",")[0:-1]
+                exon_bigger=entry.group(10).split(",")[0:-1]
                 
                 #make entries for each exon.
                 gene_dict[trans_ID]["exons"]=[]
@@ -162,16 +158,44 @@ if __name__=="__main__":
         #result is a list. i.e. two gene_dicts.
         result=pool.map(database_read, [args.refseq, args.gencode])
 
-print(result)
+
 #Merge gencode and refseq outputs
 gene_dict=merge_nested_dict(result)
 
 print("Creating Database Dictionary: Done! \n", end="\r")
 
-print(gene_dict)
 
-#%% 2. Now we have a dictionary of all exon coordinates per transcript.
+#%% 2. Now we need to find the UTR region coordinates based on the dictionary we just created.
 
+
+for trans_ID in gene_dict:
+    #the UTR is the last part of the gene.
+    #i.e. difference between trans stop and cds stop on plus strand
+    #and difference between trans start and cds start on neg strand
+    if gene_dict[trans_ID]["strand"]=="+":
+        UTR=[[int(gene_dict[trans_ID]["cds"][1]),int(gene_dict[trans_ID]["trans"][1])]]
+    else:
+        UTR=[[int(gene_dict[trans_ID]["trans"][0]),int(gene_dict[trans_ID]["cds"][0])]]
+        
+
+    #Now we need to check if that region overlaps with any exons in OTHER transcripts of the same gene.
+    #If there is an exon that stops BEFORE the UTR end, then that part of the UTR should be excluded.
+    for second_ID in gene_dict:
+        if second_ID==trans_ID:
+            #dont have to compare to itself.
+            continue
+        
+        #go over parts of UTR
+        for part in UTR:
+            #Check for overlapping exon.
+            for exon in gene_dict[second_ID]["exons"]:
+                #three cases possible. see drawings.
+                #But basically the exon can overlap with beginning, middle part or end.
+                #Make sure to not count them if the exon is the same as the UTR. ITs cause the
+                #UTR is also annotated as an exon.
+                if int(gene_dict[second_ID]["exons"][1])> part[0] and int(gene_dict[second_ID]["exons"][1])< part[1]:
+                    
+                
 
 #%% End Timer
 
