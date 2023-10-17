@@ -88,11 +88,13 @@ def database_read(file):
                 
                 #Add transcript ID to gene dictionary.
                 gene_dict[trans_ID]=dict()
-                trans_coord=[entry.group(4), entry.group(5)]
-                cds_coord=[entry.group(6), entry.group(7)]
-                gene_dict[trans_ID]["trans"]=trans_coord
-                gene_dict[trans_ID]["cds"]=cds_coord
-                gene_dict[trans_ID]["strand"]=strand                
+                trans_coord=[int(entry.group(4)), int(entry.group(5))]
+                cds_coord=[int(entry.group(6)), int(entry.group(7))]
+                if strand =="+":
+                    gene_dict[trans_ID]["UTR"]=[[cds_coord[1], trans_coord[1]]]
+                else:
+                    gene_dict[trans_ID]["UTR"]=[[trans_coord[0], cds_coord[0]]]
+               
                 """For this we need all exon coordinates per transcript. 
                 First regardless of strand."""
 
@@ -169,33 +171,54 @@ print("Creating Database Dictionary: Done! \n", end="\r")
 
 
 for trans_ID in gene_dict:
-    #the UTR is the last part of the gene.
-    #i.e. difference between trans stop and cds stop on plus strand
-    #and difference between trans start and cds start on neg strand
-    if gene_dict[trans_ID]["strand"]=="+":
-        UTR=[[int(gene_dict[trans_ID]["cds"][1]),int(gene_dict[trans_ID]["trans"][1])]]
-    else:
-        UTR=[[int(gene_dict[trans_ID]["trans"][0]),int(gene_dict[trans_ID]["cds"][0])]]
-        
-
-    #Now we need to check if that region overlaps with any exons in OTHER transcripts of the same gene.
-    #If there is an exon that stops BEFORE the UTR end, then that part of the UTR should be excluded.
     for second_ID in gene_dict:
-        if second_ID==trans_ID:
-            #dont have to compare to itself.
+        #If they are the same, no comparison needed.
+        if trans_ID==second_ID:
+            continue
+        #If UTR is the same, we dont need to check the exons.
+        if gene_dict[trans_ID]["UTR"]==gene_dict[second_ID]["UTR"]:
             continue
         
-        #go over parts of UTR
-        for part in UTR:
-            #Check for overlapping exon.
-            for exon in gene_dict[second_ID]["exons"]:
-                #three cases possible. see drawings.
-                #But basically the exon can overlap with beginning, middle part or end.
-                #Make sure to not count them if the exon is the same as the UTR. ITs cause the
-                #UTR is also annotated as an exon.
-                if int(gene_dict[second_ID]["exons"][1])> part[0] and int(gene_dict[second_ID]["exons"][1])< part[1]:
-                    
+        to_be_removed=[]
+        #Otherwise we have two transcripts with different UTRs. 
+        #Then we have to check the exons.
+        for exon in gene_dict[second_ID]["exons"]:
+            #see if in range of UTR
+            for utr in gene_dict[trans_ID]["UTR"]:
+                if exon[1]<utr[0] or exon[0]>utr[1]:
+                    #Not in range
+                    continue
                 
+                #in range
+                if exon[0]>utr[0] and exon[1]<utr[1]:
+                    #start and stop in UTR
+                
+                elif exon[0]>utr[0]:
+                    #only start in utr
+                
+                elif exon[1]<utr[1]:
+                    #only stop in utr
+                
+                elif exon==utr:
+                    #they have the same coordinates. if last exon, ignore. 
+                    #otherwise this utr needs to be ignored instead.
+                    if gene_dict[second_ID]["exons"].index(exon)!=len(gene_dict[second_ID]["exons"])-1:
+                        #not the last exon.
+                        to_be_removed.append(utr)
+                    
+        new_list_utr=[]
+        for utr in gene_dict[trans_ID]["UTR"]:
+            if utr not in to_be_removed:
+                new_list_utr.append(utr)
+        
+        gene_dict[trans_ID]["UTR"]=new_list_utr
+                
+                
+                
+                
+                
+                
+    
 
 #%% End Timer
 
