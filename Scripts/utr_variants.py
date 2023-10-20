@@ -105,8 +105,8 @@ def database_read(file):
                 #make entries for each exon.
                 gene_dict[trans_ID]["exons"]=[]
                 for i in range(0, number_exons):
-                    gene_dict[trans_ID]["exons"].append([exon_smaller[i], 
-                                                exon_bigger[i]])
+                    gene_dict[trans_ID]["exons"].append([int(exon_smaller[i]), 
+                                                int(exon_bigger[i])])
     return gene_dict
 
 #To merge two nested dictionaries, I wrote a function.
@@ -179,46 +179,90 @@ for trans_ID in gene_dict:
         if gene_dict[trans_ID]["UTR"]==gene_dict[second_ID]["UTR"]:
             continue
         
-        to_be_removed=[]
         #Otherwise we have two transcripts with different UTRs. 
         #Then we have to check the exons.
-        for exon in gene_dict[second_ID]["exons"]:
-            #see if in range of UTR
-            for utr in gene_dict[trans_ID]["UTR"]:
-                if exon[1]<utr[0] or exon[0]>utr[1]:
-                    #Not in range
-                    continue
-                
-                #in range
-                if exon[0]>utr[0] and exon[1]<utr[1]:
-                    #start and stop in UTR
-                
-                elif exon[0]>utr[0]:
-                    #only start in utr
-                
-                elif exon[1]<utr[1]:
-                    #only stop in utr
-                
-                elif exon==utr:
-                    #they have the same coordinates. if last exon, ignore. 
-                    #otherwise this utr needs to be ignored instead.
-                    if gene_dict[second_ID]["exons"].index(exon)!=len(gene_dict[second_ID]["exons"])-1:
-                        #not the last exon.
-                        to_be_removed.append(utr)
+        no_change=False
+        while no_change==False:
+            #some utrs will have to be removed entirely.
+            to_be_removed=[]
+            break_loops=False
+
+            for exon in gene_dict[second_ID]["exons"]:
+                if break_loops==True:
+                    break
+                #reset flag.
+                no_change=True
+                #see if in range of UTR
+                for utr in gene_dict[trans_ID]["UTR"]:
+                    if break_loops==True:
+                        break
+                    if exon[1]<utr[0] or exon[0]>utr[1]:
+                        #Not in range
+                        continue
                     
-        new_list_utr=[]
-        for utr in gene_dict[trans_ID]["UTR"]:
-            if utr not in to_be_removed:
-                new_list_utr.append(utr)
-        
-        gene_dict[trans_ID]["UTR"]=new_list_utr
-                
-                
-                
-                
-                
-                
-    
+                    #in range
+                    if exon[0]>utr[0] and exon[1]<utr[1]:
+                        no_change=False
+                        #start and stop in UTR
+                        #UTR splits into two.
+                        #If this happens, we need to break the loop and start over.
+                        new_utr=[[utr[0], exon[0]],[exon[1], utr[1]]]
+                        #remove current utr.
+                        gene_dict[trans_ID]["UTR"].remove(utr)
+                        for u in new_utr:
+                            if u not in gene_dict[trans_ID]["UTR"]:
+                                gene_dict[trans_ID]["UTR"].append(u)
+                        #break loop of utrs- otherwise error.
+                        break_loops=True
+                    
+                    elif exon[0]>utr[0] and exon[0]!=utr[1]:
+                        no_change=False
+                        #only start in utr
+                        #Then the UTR gets a piece cut off in the end
+                        utr[1]=exon[0]
+                    elif exon[1]<utr[1] and exon[1]!=utr[0]:
+                        no_change=False
+                        #only stop in utr
+                        #UTR gets a piece cut off in the beginning
+                        utr[0]=exon[1]
+                    
+                    elif exon==utr:
+                        #they have the same coordinates. if last exon, ignore. 
+                        #otherwise this utr needs to be ignored instead.
+                        if gene_dict[second_ID]["exons"].index(exon)!=len(gene_dict[second_ID]["exons"])-1:
+                            no_change=False
+                            #not the last exon.
+                            gene_dict[trans_ID]["UTR"].remove(utr)
+                            #if there are no utrs left, we can stop the loop.
+                            if len(gene_dict[trans_ID]["UTR"])==0:
+                                no_change=True
+                            #break loop of utrs- otherwise theres an error.
+                            break_loops=True
+
+#%% 3. Go through variant file.
+
+with open(args.variant, "r") as variants, open(args.out, "w") as out:
+    for line in variants:
+        if line.startswith("#"):
+            #header
+            out.write(line)
+        elif line.startswith("Location"):
+            #thats the column names
+            out.write(line)
+        else:
+            coordinate=int(line.split("\t")[0].split("_")[1])
+            #flag
+            to_write=True
+            
+            #check if in an utr region
+            for trans_ID in gene_dict:
+                for utr in gene_dict[trans_ID]["UTR"]:
+                    if coordinate>=utr[0] and coordinate<=utr[1]:
+                        to_write=False
+            
+            if to_write==True:
+                out.write(line)
+
 
 #%% End Timer
 
