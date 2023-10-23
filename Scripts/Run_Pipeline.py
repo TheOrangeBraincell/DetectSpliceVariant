@@ -119,6 +119,10 @@ if which("samtools") is None:
     print("samtools has not been found. Install samtools v.1.15 over conda with conda install -c bioconda samtools=1.15")
     quit()
 
+if which("bedtools") is None:
+    print("bedtools has not been found. Install bedtools v.2.31.0 over conda with conda install -c bioconda bedtools=2.31.0")
+    quit()
+
 #%% 1. Preparations for pipeline
 
 "Check if input files exists"
@@ -260,6 +264,15 @@ print("Additional Files needed for all genes created.")
 #print(parameter_string)
 
 #%% 3. Start Pipeline for every gene separately, allocate resources.
+
+#How many cores?
+counter=0
+with open("bam_file_list.txt", "r") as bam:
+    for line in bam:
+        counter+=1
+
+#divide number by 1021, to see how many separate read depth processes we will need.
+core_number=counter/1021
 
 if __name__ == '__main__':
     with mp.Pool(math.floor(int(args.cores)/3)) as p:

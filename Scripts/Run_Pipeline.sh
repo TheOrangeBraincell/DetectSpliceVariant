@@ -20,13 +20,31 @@ cat temp_Var_${1}.txt >>Log_Files_genes/${1}_log.txt
 rm temp_AS_${1}.txt
 rm temp_Var_${1}.txt 
 
-# Now Psiscores, this one uses 3 cores as is, so the genotypes have to wait.
+# Now Psiscores, this one uses 3 cores as is
 python Scripts/PsiScores.py -i ${2}AS_Events/${1}_AS_events.tsv -o ${2}PSI_Tables/${1}_PSI.tsv -s bam_file_list.txt -is "${5}" >> Log_Files_genes/${1}_log.txt
+#at the same time we can filter out the utr variant locations with the 1 remaining core. 
+python Scripts/utr_variants.py -v ${2}Variant_Locations/${1}_locations.tsv -o ${2}Variant_Locations/${1}_locations_noutr.tsv -n $1 -g $4 -r $3
+#wait for both processes to finish
+wait
 
 #When that one is done we do genotypes.
-#First Read depth script to make read depth tables.
-./Scripts/bedcov.sh $1 bam_file_list.txt $2
+#Bedtools multicov needs the processes to be split into 4, because it can only handle 1021 samples at a time (1021 bam files)
+#That means we split the bam file list so that theres less than that number, and then run it parallel for those 4.
+#Mind that this needs to be adjusted if we run it for more samples.
+number_lines=$((`wc -l < bam_file_list.txt` / 1021 +1))
+split -l $number_lines bam_file_list.txt #this needs to be adjusted to any number of samples instead.
+#make bed file out of locations
+echo ""> ${1}_variants.bed;
+cat ${2}Variant_Locations/${1}_locations_noutr.tsv | grep -v "^#" | grep -v "^Location"| cut -f1 | while read var_ID; do echo $var_ID | awk -F '_' '{print $1"\t"$2"\t"$2+1"\t"$1"_"$2"_"$3"_"$4"\t.\t+"}' >> ${1}_variants.bed; done
+
+for file in xa*; do Scripts/bedtools.sh $file ${1}_variants.bed ${2}Read_Depth/${1}_read_depth.tsv > ${1}_rd_log.txt; done
+wait 
+#remove split files.
+rm xa*
+#remove bed file
+rm ${1}_variants.bed;
+
 #When that one is done, we need to read off the read depth table to generate the genotypes.
-python Scripts/genotype.py -v ${2}Variant_Locations/${1}_locations.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1
+python Scripts/genotype.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1
 
 
