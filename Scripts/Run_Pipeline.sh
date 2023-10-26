@@ -31,18 +31,31 @@ wait
 #Bedtools multicov needs the processes to be split into 4, because it can only handle 1021 samples at a time (1021 bam files)
 #That means we split the bam file list so that theres less than that number, and then run it parallel for those 4.
 #Mind that this needs to be adjusted if we run it for more samples.
-number_lines=$((`wc -l < bam_file_list.txt` / 1021 +1))
-split -l $number_lines bam_file_list.txt #this needs to be adjusted to any number of samples instead.
+how_many=$((`wc -l < bam_file_list.txt` / 1021 +1)) #thats into how many files.
+number_lines=$((`wc -l < bam_file_list.txt`/$how_many +1))
+split -l $number_lines bam_file_list.txt ${1}_split_
 #make bed file out of locations
 echo ""> ${1}_variants.bed;
 cat ${2}Variant_Locations/${1}_locations_noutr.tsv | grep -v "^#" | grep -v "^Location"| cut -f1 | while read var_ID; do echo $var_ID | awk -F '_' '{print $1"\t"$2"\t"$2+1"\t"$1"_"$2"_"$3"_"$4"\t.\t+"}' >> ${1}_variants.bed; done
 
-for file in xa*; do Scripts/bedtools.sh $file ${1}_variants.bed ${2}Read_Depth/${1}_read_depth.tsv > ${1}_rd_log.txt; done
-wait 
+for file in ${1}_split_*; do Scripts/bedtools.sh $file ${1}_variants.bed temp_${file}.tsv > log_${file}.tsv; done
+wait
+#Add header to read depth output
+cat ${1}_split_* | tr '\n' '\t' | paste > ${2}Read_Depth/${1}_read_depth.tsv
+#add locations
+locations=$(cut -f1-6 temp_${1}_split_aa.tsv)
+counts=$(cut -f7- temp_${1}_split_*)
+cut -f1-6 temp_${1}_split_aa.tsv | paste < (cut -f7- temp_${1}_split_*)  >> ${2}Read_Depth/${1}_read_depth.tsv
+#add counts
+cut -f7- temp_${1}_split_* | paste  >> ${2}Read_Depth/${1}_read_depth.tsv
 #remove split files.
-rm xa*
+#rm ${1}_split_*
 #remove bed file
-rm ${1}_variants.bed;
+#rm ${1}_variants.bed;
+#remove temp files
+#rm temp_${1}_split_*
+#remove log files
+#rm log_${1}_split_*
 
 #When that one is done, we need to read off the read depth table to generate the genotypes.
 python Scripts/genotype.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1

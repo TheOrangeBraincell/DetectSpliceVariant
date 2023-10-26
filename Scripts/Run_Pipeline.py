@@ -272,10 +272,14 @@ with open("bam_file_list.txt", "r") as bam:
         counter+=1
 
 #divide number by 1021, to see how many separate read depth processes we will need.
-core_number=counter/1021
+core_number=counter/1021 +1 
+#This is the minimum number of processes we need per gene. Note that for PSI and variants
+#to run in parallel, we need a minimum of 4 cores.
+if core_number<4:
+    core_number=4
 
 if __name__ == '__main__':
-    with mp.Pool(math.floor(int(args.cores)/3)) as p:
+    with mp.Pool(math.floor(int(args.cores)/core_number)) as p:
         p.map(Pipeline, genes)
         
 #%% Time End

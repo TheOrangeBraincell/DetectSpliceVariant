@@ -5,7 +5,7 @@ start=`date +%s`
 
 files=$(cat $1 | tr '\n' ' ')
 
-#echo $files
+echo $files
 
 bedtools multicov -p -bams $files -bed $2 > $3
 

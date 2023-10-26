@@ -24,7 +24,7 @@ Possible Bugs:
 #%% 0.0 Imports
 import argparse
 import time
-
+import re
 #%% 0.1 Argparse
 
 "0. Setting up argparse, handling input parameters"
@@ -56,15 +56,21 @@ read_depths=dict()
 
 with open(args.read_depth, "r") as depths:
     for line in depths:
-        if line.startswith("#Read Depth"):
-            continue
+        if not line.startswith("chr"):
+            #then thats the bam file names, i.e. way to get the sample.
+            p=re.compile('(S0\d{5})')
+            sample_names=p.findall(line)
         else:
-            if line.split("\t")[1] not in read_depths:
-                read_depths[line.split("\t")[1]]={line.split("\t")[0]: line.split("\t")[2].strip("\n")}
-            else: 
-                read_depths[line.split("\t")[1]][line.split("\t")[0]] = line.split("\t")[2].strip("\n")
+            read_depths[line.split("\t")[3]]=dict()
+            #add all samples to inner dictionary
+            counts=line.split("\t")[6:]
             
-            
+            if len(sample_names)!=len(counts):
+                print("There is an error with the number of columns!")
+                quit()
+            for i in range(0, len(sample_names)):
+                read_depths[line.split("\t"[3])][sample_names[i]]=counts[i]
+
 #%% 2. Read through variant location table, check read depth table, write output.
 
 with open(args.variant, "r") as variants, open(args.output, "w") as out:
