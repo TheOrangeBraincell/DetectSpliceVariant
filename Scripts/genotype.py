@@ -63,13 +63,13 @@ with open(args.read_depth, "r") as depths:
         else:
             read_depths[line.split("\t")[3]]=dict()
             #add all samples to inner dictionary
-            counts=line.split("\t")[6:]
+            counts=line.strip("\n").split("\t")[6:]
             
             if len(sample_names)!=len(counts):
                 print("There is an error with the number of columns!")
                 quit()
             for i in range(0, len(sample_names)):
-                read_depths[line.split("\t"[3])][sample_names[i]]=counts[i]
+                read_depths[line.split("\t")[3]][sample_names[i]]=counts[i]
 
 #%% 2. Read through variant location table, check read depth table, write output.
 

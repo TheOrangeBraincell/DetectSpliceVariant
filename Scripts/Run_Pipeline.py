@@ -15,8 +15,9 @@ Useage:
     
     #run directly from console use:
     
-python ../gitrepo/Run_Pipeline.py -s sample_file.txt -g genes.txt -o Outputs_Pipeline/ -gc ~/MasterProject/Database/hg38_GENCODE39_all.tsv -rs ~/MasterProject/Database/hg38_NCBI_all.tsv -vcf ~/Sample_Data -bam ~/Sample_Data -gff ~/MasterProject/Database/gencode.v39.annotation.gff3 --cores 6
-    
+        python Scripts/Run_Pipeline.py -s sample_file.txt -g genes.txt -o Outputs_Pipeline/ -gc Database/GENCODE39.tsv -rs Database/RefSeq.tsv -vcf ~/Sample_Data -bam ~/Sample_Data -gff Database/gencode.v39.annotation.gff3 --cores 4    
+
+
 Possible Bugs:
 """
 

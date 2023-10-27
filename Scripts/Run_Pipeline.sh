@@ -33,7 +33,7 @@ wait
 #Mind that this needs to be adjusted if we run it for more samples.
 how_many=$((`wc -l < bam_file_list.txt` / 1021 +1)) #thats into how many files.
 number_lines=$((`wc -l < bam_file_list.txt`/$how_many +1))
-split -l $number_lines bam_file_list.txt ${1}_split_
+split -l 2 bam_file_list.txt ${1}_split_
 #make bed file out of locations
 echo ""> ${1}_variants.bed;
 cat ${2}Variant_Locations/${1}_locations_noutr.tsv | grep -v "^#" | grep -v "^Location"| cut -f1 | while read var_ID; do echo $var_ID | awk -F '_' '{print $1"\t"$2"\t"$2+1"\t"$1"_"$2"_"$3"_"$4"\t.\t+"}' >> ${1}_variants.bed; done
@@ -43,19 +43,23 @@ wait
 #Add header to read depth output
 cat ${1}_split_* | tr '\n' '\t' | paste > ${2}Read_Depth/${1}_read_depth.tsv
 #add locations
-locations=$(cut -f1-6 temp_${1}_split_aa.tsv)
-counts=$(cut -f7- temp_${1}_split_*)
-cut -f1-6 temp_${1}_split_aa.tsv | paste < (cut -f7- temp_${1}_split_*)  >> ${2}Read_Depth/${1}_read_depth.tsv
-#add counts
-cut -f7- temp_${1}_split_* | paste  >> ${2}Read_Depth/${1}_read_depth.tsv
+cut -f1-6 temp_${1}_split_aa.tsv > ${1}_locations.txt
+for file in temp_${1}_split_*; do cut -f7- $file > ${1}_cut_${file}; done
+paste ${1}_cut_* > ${1}_counts.txt
+paste ${1}_locations.txt ${1}_counts.txt >> ${2}Read_Depth/${1}_read_depth.tsv
+
+#remove location and counts file
+rm ${1}_locations.txt
+rm ${1}_counts.txt
 #remove split files.
-#rm ${1}_split_*
+rm ${1}_split_*
 #remove bed file
-#rm ${1}_variants.bed;
+rm ${1}_variants.bed;
 #remove temp files
-#rm temp_${1}_split_*
+rm temp_${1}_split_*
+rm ${1}_cut_*
 #remove log files
-#rm log_${1}_split_*
+rm log_${1}_split_*
 
 #When that one is done, we need to read off the read depth table to generate the genotypes.
 python Scripts/genotype.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1
