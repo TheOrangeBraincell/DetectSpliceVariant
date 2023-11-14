@@ -235,7 +235,7 @@ with open("all_bam_file_list.txt", "r") as all_bam:
                     out.write(line)
                     
 out.close()
-#VCF list (same as for vcf)
+#VCF list (same as for bam)
 subprocess.run(["find "+ args.vcf + " -name variants-annotated.vcf >all_vcf_file_list.txt"], shell=True)
 out=open("vcf_file_list.txt", "w")
 with open("all_vcf_file_list.txt", "r") as all_vcf:
