@@ -4,7 +4,7 @@
 
 #To be run for every gene of the gene list. Core part of pipeline.
 #Inputs: 1. gene, 2. output directory, 3. refseq, 4. gencode, 5. parameter string
-
+start_pipeline=`date +%s`
 #Initialize log file for gene.
 echo "#Log file for ${1}" > Log_Files_genes/${1}_log.txt
 
@@ -21,9 +21,9 @@ rm temp_AS_${1}.txt
 rm temp_Var_${1}.txt 
 
 # Now Psiscores, this one uses 3 cores as is
-python Scripts/PsiScores.py -i ${2}AS_Events/${1}_AS_events.tsv -o ${2}PSI_Tables/${1}_PSI.tsv -s bam_file_list.txt -is "${5}" >> Log_Files_genes/${1}_log.txt
+python Scripts/PsiScores.py -i ${2}AS_Events/${1}_AS_events.tsv -o ${2}PSI_Tables/${1}_PSI.tsv -s bam_file_list.txt -is "${5}" >> Log_Files_genes/${1}_log.txt &
 #at the same time we can filter out the utr variant locations with the 1 remaining core. 
-python Scripts/utr_variants.py -v ${2}Variant_Locations/${1}_locations.tsv -o ${2}Variant_Locations/${1}_locations_noutr.tsv -n $1 -g $4 -r $3
+python Scripts/utr_variants.py -v ${2}Variant_Locations/${1}_locations.tsv -o ${2}Variant_Locations/${1}_locations_noutr.tsv -n $1 -g $4 -r $3 >> Log_Files_genes/${1}_log.txt &
 #wait for both processes to finish
 wait
 
@@ -33,12 +33,12 @@ wait
 #Mind that this needs to be adjusted if we run it for more samples.
 how_many=$((`wc -l < bam_file_list.txt` / 1021 +1)) #thats into how many files.
 number_lines=$((`wc -l < bam_file_list.txt`/$how_many +1))
-split -l 2 bam_file_list.txt ${1}_split_
+split -l $number_lines bam_file_list.txt ${1}_split_
 #make bed file out of locations
 echo ""> ${1}_variants.bed;
 cat ${2}Variant_Locations/${1}_locations_noutr.tsv | grep -v "^#" | grep -v "^Location"| cut -f1 | while read var_ID; do echo $var_ID | awk -F '_' '{print $1"\t"$2"\t"$2+1"\t"$1"_"$2"_"$3"_"$4"\t.\t+"}' >> ${1}_variants.bed; done
 
-for file in ${1}_split_*; do Scripts/bedtools.sh $file ${1}_variants.bed temp_${file}.tsv > log_${file}.tsv; done
+for file in ${1}_split_*; do Scripts/bedtools.sh $file ${1}_variants.bed temp_${file}.tsv > log_${file}.tsv & done
 wait
 #Add header to read depth output
 cat ${1}_split_* | tr '\n' '\t' | paste > ${2}Read_Depth/${1}_read_depth.tsv
@@ -62,6 +62,8 @@ rm ${1}_cut_*
 rm log_${1}_split_*
 
 #When that one is done, we need to read off the read depth table to generate the genotypes.
-python Scripts/genotype.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1
+python Scripts/genotype.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1 >>Log_Files_genes/${1}_log.txt
 
-
+end_pipeline=`date +%s`
+runtime=$((end_pipeline-start_pipeline))
+echo "Runtime for gene ${1} is ${runtime} seconds" >> Log_Files_genes/${1}_log.txt

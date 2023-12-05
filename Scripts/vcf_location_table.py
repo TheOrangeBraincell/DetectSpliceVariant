@@ -266,7 +266,8 @@ if len(variant_keys)==0:
         out.write("#No variants in the gene "+args.gene + " found. \n")
         #For R simplicity I still need the header though.
         out.write("Location\t"+"\t".join(sample_names)+"\n")
-        
+        print("Run time: {:.2f} seconds.".format(time.time()-start_time))  
+        quit()
         
 counter=0
 invalid_counter=0

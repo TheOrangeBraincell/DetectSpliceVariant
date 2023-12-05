@@ -325,7 +325,7 @@ def PSI_for_Sample(sample):
                     PSI=str(round(IR/(IR+ER), 3))
              
             sample_PSI[event]=PSI
-    print("PSI scores calculated for sample ", sample_names.index(sample), "/", len(sample_names))
+    #print("PSI scores calculated for sample ", sample_names.index(sample), "/", len(sample_names))
     return sample_PSI
 
 def CE(sample, event, read):
@@ -854,6 +854,7 @@ print("Reading in BAM files: Done! \n", end="\r")
 
 #%% 3. Read counts, per sample, allow parallelization, write output.
 
+print("Calculating PSI scores ...", end="\r")
 excluded_reads=set()
 
 with mp.Pool(3) as pool:
@@ -863,7 +864,7 @@ with mp.Pool(3) as pool:
 # for sample in sample_names:
 #     result.append(PSI_for_Sample(sample))
 
-print("PSI scores calculated for all samples!")
+print("PSI scores calculated for all samples! \n", end="\r")
 
 with open(args.out, "w") as outfile:
     #write header
@@ -884,5 +885,3 @@ print("PSI script complete!")
 #%% End time
 
 print("Run time: {:.2f} seconds.".format(time.time()-start_time))  
-
-
