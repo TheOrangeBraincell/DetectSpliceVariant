@@ -73,6 +73,7 @@ with open(args.read_depth, "r") as depths:
 
 #%% 2. Read through variant location table, check read depth table, write output.
 
+
 with open(args.variant, "r") as variants, open(args.output, "w") as out:
     for line in variants:
         if line.startswith("#Var"):
