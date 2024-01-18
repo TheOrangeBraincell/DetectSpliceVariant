@@ -21,11 +21,17 @@ rm temp_AS_${1}.txt
 rm temp_Var_${1}.txt 
 
 # Now Psiscores, this one uses 3 cores as is
-python Scripts/PsiScores.py -i ${2}AS_Events/${1}_AS_events.tsv -o ${2}PSI_Tables/${1}_PSI.tsv -s bam_file_list.txt -is "${5}" >> Log_Files_genes/${1}_log.txt &
+python Scripts/PsiScores.py -i ${2}AS_Events/${1}_AS_events.tsv -o ${2}PSI_Tables/${1}_PSI.tsv -s bam_file_list.txt -is "${5}" >> temp_PSI_${1}.txt &
 #at the same time we can filter out the utr variant locations with the 1 remaining core. 
-python Scripts/utr_variants.py -v ${2}Variant_Locations/${1}_locations.tsv -o ${2}Variant_Locations/${1}_locations_noutr.tsv -n $1 -g $4 -r $3 >> Log_Files_genes/${1}_log.txt &
+python Scripts/utr_variants.py -v ${2}Variant_Locations/${1}_locations.tsv -o ${2}Variant_Locations/${1}_locations_noutr.tsv -n $1 -g $4 -r $3 >> temp_UTR_${1}.txt &
 #wait for both processes to finish
 wait
+#Add temp log files to general gene log file
+cat temp_PSI_${1}.txt >> Log_Files_genes/${1}_log.txt
+cat temp_UTR_${1}.txt >> Log_Files_genes/${1}_log.txt
+#delete temporary log files
+rm temp_PSI_${1}.txt
+rm temp_UTR_${1}.txt
 
 #When that one is done we do genotypes.
 #Bedtools multicov needs the processes to be split into 4, because it can only handle 1021 samples at a time (1021 bam files)
@@ -48,6 +54,7 @@ for file in temp_${1}_split_*; do cut -f7- $file > ${1}_cut_${file}; done
 paste ${1}_cut_* > ${1}_counts.txt
 paste ${1}_locations.txt ${1}_counts.txt >> ${2}Read_Depth/${1}_read_depth.tsv
 
+wait 
 #remove location and counts file
 rm ${1}_locations.txt
 rm ${1}_counts.txt

@@ -82,6 +82,9 @@ Gene_found=False
 
 with open(args.ranges, "r") as ranges:
     for line in ranges:
+        if line.startswith("chrom"):
+            #header
+            continue
         #chrom\tstart\tstop\tgene\tscore\tstrand\n
         if line.split("\t")[3]==args.gene.strip("\n"):
             gene_chrom, gene_start, gene_stop, gene, score, gene_strand=line.strip("\n").split("\t")

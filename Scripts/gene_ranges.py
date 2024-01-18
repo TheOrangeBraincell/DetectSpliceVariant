@@ -112,14 +112,6 @@ for file in [args.gencode, args.refseq]:
                     looking for the biggest distance between smallest and biggest,
                     regardless if they are the start or stop coordinates."""
 
-#%% 3. There might be genes that cannot be found in the gene ranges. Dont run pipeline for those.
-# Make output file only containing genes we found the ranges of.
-# adjust it for Run pipeline.py
-
-with open("genes_found.txt", "w") as found:    
-    for gene in gene_list:
-        if gene in gene_ranges:
-            found.write(gene+"\n")
 
 #%% 4. Write output file 
 

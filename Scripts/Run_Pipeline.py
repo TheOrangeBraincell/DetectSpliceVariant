@@ -256,11 +256,11 @@ out.close()
 #subprocess.run("""shuf -n 25 bam_file_list.txt | while read i; do samtools view $i -L Database/3_UTR.bed -h -f PROPER_PAIR -F UNMAP,SECONDARY,QCFAIL --subsample 0.25 | head -n 500000 | samtools stats | grep -A 1 "insert size average"; done > average_insert.txt""", shell=True)
 #subprocess.run("""awk 'BEGIN{FS="\t"} (NR %2 == 1) {s+=$3} (NR %2 == 0) {sd+=$3^2} END{print("Mean", s/(NR/2) , "Standard Deviation", sqrt(sd/(NR/2)))}' average_insert.txt > parameter_string.txt""", shell=True)
 
-#Use gene ranges output file "genes_found.txt" to reduce the gene list to only genes we have ranges on.
-genes=[]
-with open("genes_found.txt", "w") as genes_found:
-    for line in genes_found:
-        genes.append(line.strip("\n"))
+#Use gene ranges output file to reduce the gene list to only genes we have ranges on.
+#genes=[]
+#with open("gene_ranges.bed", "r") as genes_file:
+#    for line in genes_file:
+#        genes.append(line.strip("\n").split("\t")[3])
 
 #Create parameter file for psi scores.
 with open("parameter_string.txt", "r") as param_file:
