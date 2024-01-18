@@ -1,5 +1,5 @@
 # Detect Splice Variants
-*Mirjam Karlsson-Müller*
+*Mirjam Müller*
 
 This is a pipeline develped to analyze the effect of genetic variants in breast cancer patients on mRNA splicing, based on the patients RNA Sequencing data.
 
@@ -25,11 +25,11 @@ Detailed information with Screenshots on how to acquire the same RefSeq and GENC
 
 ## Installations
 
-To run the pipeline, pysam (v0.19.0) and samtools (v1.15.1) have to be installed via conda. 
+To run the pipeline, pysam (v0.19.0), samtools (v1.15.1) and bedtools(v2.31.0) have to be installed via conda. 
 
 ## Running the Pipeline
 
-To run the Pipeline, you require the Scripts/ folder and its contents, as well as the annotation files described above. You also require a list of sample names and a list of genes of interest as input. Both need to have one sample or gene respectively, per line.
+To run the Pipeline, you require the Scripts/ folder and its contents, as well as the annotation files described above. You also require a list of sample names (and their corresponding bam and vcf files in a folder) and a list of genes of interest as input. Both need to have one sample or gene respectively, per line.
 
 To start a run, you run the Scripts/Run_Pipeline.py script as follows. Make sure to have your conda environment with the installations activated.
 
@@ -61,5 +61,13 @@ optional arguments:
 ```
 
 The script will create the file tree needed for the pipeline, as long as it finds its prerequisites in the folder. Otherwise it will exit and ask for what it could not find.
-It will start a pipeline run per gene in the input list of gene, using 3 cores per gene run. Thus it will run as many genes parallel as the number of cores given to it divided by 3.
+It will start a pipeline run per gene in the input list of gene, using min. 4 cores per gene run. The exact number of cores needed per gene is determined by the number of input samples. As the bedtools step can only run for 1021 samples at a time, the cores per gene is increased from 4 if there is more than 1021 times 4 samples present. 
+
+The outputs will be found in the output directory specified when initializing the run. Each gene has its own set of output files consisting of
+* A file containing all alternative splice events identified in the genes range.
+* A alternative splice events times sample table containing PSI scores.
+* A variant location table containing variant ID times samples, filled with the genotypes found in the vcf.
+* A genotype table also containing variant ID times samples, but filled with genotypes also for samples that dont have a variant at a specific location.
+* A read depth table containing variant information in .bed format.
+* a log file containing the console outputs for all the steps of the pipeline.
 
