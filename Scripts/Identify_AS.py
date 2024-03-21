@@ -74,7 +74,7 @@ from multiprocessing import Pool
 parser = argparse.ArgumentParser(prog='Identify Alternative Splicing',
                                  usage='%(prog)s -o OUTPUT-FILE \
                                      -g GENCODE-FILE -r REFSEQ-FILE \
-                                         -n GENE-NAME -as AS-TYPE',
+                                         [-c] "chrX:XXXXXX-XXXXXX" -as AS-TYPE',
                                  description="""Per AS event of interest, creates
                                  a table with the PSI scores supporting said event
                                  per sample in sample folder.""")
