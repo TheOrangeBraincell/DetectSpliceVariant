@@ -31,14 +31,16 @@ parser = argparse.ArgumentParser(prog='Filter Exon Variants',
                                  description="""Per gene, filters the variants to only include
                                  variants found in exons.""")
 
-parser.add_argument('--genotype', '-gt', required=True,
-                    help="Input file, containing genotype events for the gene.")
+parser.add_argument('--variants', '-v', required=True,
+                    help="Input file, containing variants (-3UTR variants) for gene.")
 parser.add_argument('--gencode', '-g', required=True,
                     help="""tsv file containing bed file information on 
                     annotated exons from GENCODE39 as well as gene names.""")
 parser.add_argument('--refseq', '-r', required=True,
                     help="""tsv file containing bed file information on 
                     annotated exons from RefSeq as well as gene names.""")
+parser.add_argument('--out', '-o', required=True,
+                    help="""Output file, containing only exon variants.""")
 
 
 args = parser.parse_args()
@@ -160,7 +162,7 @@ print("Starting Identify AS script! ")
 gene_dict=dict()
 
 # Find gene name
-gene = args.genotype.split("/")[-1].split("_")[0]
+gene = args.variants.split("/")[-1].split("_")[0]
 print("Creating Database Dictionary...", end="\r")
 
 # Parallelisation so gencode and refseq are read in at the same time.
@@ -180,7 +182,7 @@ print("Creating Database Dictionary: Done! \n", end="\r")
 #exonvariants = open("ESR1_exon_variants.bed", "w")
 # Now we read in the variants, check if they are in an exon and if they are, write them into output.
 
-with open(args.genotype, "r") as genotype, open("Exon_Genotypes/"+gene+"_exgeno.tsv","w") as out:
+with open(args.variants, "r") as genotype, open(args.out,"w") as out:
     for line in genotype:
         if line.startswith("#"):
             continue

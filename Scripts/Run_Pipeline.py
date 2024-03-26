@@ -177,6 +177,14 @@ else:
     if not os.path.isfile("./Scripts/vcf_location_table.py"):
         print("The vcf_location_table.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
         quit()
+#utr_variants.py
+    if not os.path.isfile("./Scripts/utr_variants.py"):
+        print("The utr_variants.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+        quit()
+#Exon_Variants.py
+    if not os.path.isfile("./Scripts/Exon_Variants.py"):
+        print("The vExon_Variants.py script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+        quit()
 
 "Check for output directories"
 if not os.path.isdir(args.out):
@@ -189,6 +197,8 @@ if not os.path.isdir(args.out+"/PSI_Tables"):
     os.mkdir(args.out+"/PSI_Tables")
 if not os.path.isdir(args.out+"/Variant_Locations"):
     os.mkdir(args.out+"/Variant_Locations")
+if not os.path.isdir(args.out+"/Exon_Variants"):
+    os.mkdir(args.out+"/Exon_Variants")
 if not os.path.isdir(args.out+"/Genotype_Tables"):
     os.mkdir(args.out+"/Genotype_Tables")
 if not os.path.isdir(args.out+"/Read_Depth"):
