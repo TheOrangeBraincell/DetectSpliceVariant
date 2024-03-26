@@ -33,6 +33,10 @@ cat temp_UTR_${1}.txt >> Log_Files_genes/${1}_log.txt
 rm temp_PSI_${1}.txt
 rm temp_UTR_${1}.txt
 
+#The first result exploration showed that only the genotypes for exon variants are reliable. So we keep only those.
+python Exon_Variants.py -gt ${2}Variant_Locations/${1}_locations_noutr.tsv -g $4 -r $3
+
+
 #When that one is done we do genotypes.
 #Bedtools multicov needs the processes to be split into 4, because it can only handle 1021 samples at a time (1021 bam files)
 #That means we split the bam file list so that theres less than that number, and then run it parallel for those 4.
