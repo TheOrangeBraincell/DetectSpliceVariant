@@ -169,9 +169,9 @@ else:
     if not os.path.isfile("./Scripts/Run_Pipeline.sh"):
         print("The Run_Pipeline.sh script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
         quit()
-    #Read_Depth.sh
-    if not os.path.isfile("./Scripts/bedcov.sh"):
-        print("The bedcov.sh script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
+    #bedtools.sh
+    if not os.path.isfile("./Scripts/bedtools.sh"):
+        print("The bedtools.sh script is missing from the Scripts directory. Please make sure all scripts are present before starting the Pipeline.")
         quit()
     #vcf_location_table.py
     if not os.path.isfile("./Scripts/vcf_location_table.py"):

@@ -34,7 +34,7 @@ rm temp_PSI_${1}.txt
 rm temp_UTR_${1}.txt
 
 #The first result exploration showed that only the genotypes for exon variants are reliable. So we keep only those.
-python Exon_Variants.py -gt ${2}Variant_Locations/${1}_locations_noutr.tsv -g $4 -r $3
+python Exon_Variants.py -gt ${2}Variant_Locations/${1}_locations_noutr.tsv -g $4 -r $3 -o ${2}Exon_Variants/${1}_exonvar.tsv
 
 
 #When that one is done we do genotypes.
@@ -46,7 +46,7 @@ number_lines=$((`wc -l < bam_file_list.txt`/$how_many +1))
 split -l $number_lines bam_file_list.txt ${1}_split_
 #make bed file out of locations
 echo ""> ${1}_variants.bed;
-cat ${2}Variant_Locations/${1}_locations_noutr.tsv | grep -v "^#" | grep -v "^Location"| cut -f1 | while read var_ID; do echo $var_ID | awk -F '_' '{print $1"\t"$2"\t"$2+1"\t"$1"_"$2"_"$3"_"$4"\t.\t+"}' >> ${1}_variants.bed; done
+cat ${2}Exon_Variants/${1}_exonvar.tsv | grep -v "^#" | grep -v "^Location"| cut -f1 | while read var_ID; do echo $var_ID | awk -F '_' '{print $1"\t"$2"\t"$2+1"\t"$1"_"$2"_"$3"_"$4"\t.\t+"}' >> ${1}_variants.bed; done
 
 for file in ${1}_split_*; do Scripts/bedtools.sh $file ${1}_variants.bed temp_${file}.tsv > log_${file}.tsv & done
 wait
@@ -73,7 +73,7 @@ rm ${1}_cut_*
 rm log_${1}_split_*
 
 #When that one is done, we need to read off the read depth table to generate the genotypes.
-python Scripts/genotype.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1 >>Log_Files_genes/${1}_log.txt
+python Scripts/genotype.py -v ${2}Exon_Variants/${1}_exonvar.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1 >>Log_Files_genes/${1}_log.txt
 
 end_pipeline=`date +%s`
 runtime=$((end_pipeline-start_pipeline))
