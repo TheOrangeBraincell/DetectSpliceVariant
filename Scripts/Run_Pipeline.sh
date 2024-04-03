@@ -34,7 +34,7 @@ rm temp_PSI_${1}.txt
 rm temp_UTR_${1}.txt
 
 #The first result exploration showed that only the genotypes for exon variants are reliable. So we keep only those.
-python Exon_Variants.py -gt ${2}Variant_Locations/${1}_locations_noutr.tsv -g $4 -r $3 -o ${2}Exon_Variants/${1}_exonvar.tsv
+python Scripts/Exon_Variants.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -g $4 -r $3 -o ${2}Exon_Variants/${1}_exonvar.tsv
 
 
 #When that one is done we do genotypes.

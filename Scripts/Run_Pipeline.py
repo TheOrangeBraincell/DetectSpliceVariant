@@ -260,17 +260,17 @@ with open("all_vcf_file_list.txt", "r") as all_vcf:
 out.close()
 #Gene ranges file (same as bam and vcf but for genes.)
 #This requires the python file gene_ranges to run.
-#subprocess.run(["python Scripts/gene_ranges.py -g "+ args.gencode+ " -r "+ args.refseq+ " -o gene_ranges.bed -i "+ args.genes], shell=True)
+subprocess.run(["python Scripts/gene_ranges.py -g "+ args.gencode+ " -r "+ args.refseq+ " -o gene_ranges.bed -i "+ args.genes], shell=True)
 #Mean insert size and standard deviation, used to be a script. Now its here.
-#subprocess.run("cat "+args.gff+""" | grep "three_prime_UTR" | awk 'BEGIN{OFS="\t"} ($5-$4>1000) {print($1 OFS $4 OFS $5)}' > Database/3_UTR.bed""", shell=True)
-#subprocess.run("""shuf -n 25 bam_file_list.txt | while read i; do samtools view $i -L Database/3_UTR.bed -h -f PROPER_PAIR -F UNMAP,SECONDARY,QCFAIL --subsample 0.25 | head -n 500000 | samtools stats | grep -A 1 "insert size average"; done > average_insert.txt""", shell=True)
-#subprocess.run("""awk 'BEGIN{FS="\t"} (NR %2 == 1) {s+=$3} (NR %2 == 0) {sd+=$3^2} END{print("Mean", s/(NR/2) , "Standard Deviation", sqrt(sd/(NR/2)))}' average_insert.txt > parameter_string.txt""", shell=True)
+subprocess.run("cat "+args.gff+""" | grep "three_prime_UTR" | awk 'BEGIN{OFS="\t"} ($5-$4>1000) {print($1 OFS $4 OFS $5)}' > Database/3_UTR.bed""", shell=True)
+subprocess.run("""shuf -n 25 bam_file_list.txt | while read i; do samtools view $i -L Database/3_UTR.bed -h -f PROPER_PAIR -F UNMAP,SECONDARY,QCFAIL --subsample 0.25 | head -n 500000 | samtools stats | grep -A 1 "insert size average"; done > average_insert.txt""", shell=True)
+subprocess.run("""awk 'BEGIN{FS="\t"} (NR %2 == 1) {s+=$3} (NR %2 == 0) {sd+=$3^2} END{print("Mean", s/(NR/2) , "Standard Deviation", sqrt(sd/(NR/2)))}' average_insert.txt > parameter_string.txt""", shell=True)
 
 #Use gene ranges output file to reduce the gene list to only genes we have ranges on.
-#genes=[]
-#with open("gene_ranges.bed", "r") as genes_file:
-#    for line in genes_file:
-#        genes.append(line.strip("\n").split("\t")[3])
+genes=[]
+with open("gene_ranges.bed", "r") as genes_file:
+    for line in genes_file:
+        genes.append(line.strip("\n").split("\t")[3])
 
 #Create parameter file for psi scores.
 with open("parameter_string.txt", "r") as param_file:

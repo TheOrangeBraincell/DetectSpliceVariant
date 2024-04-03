@@ -286,7 +286,34 @@ read_depth %>%
 
 write_tsv(comparison_w_readdepth, "SWEGEN_SCANB_readdepth.tsv")
 
-# make psi score distribution plots.# make psi stempfile()core distribution plots.
+#Remake same plot for all genes not just ESR1. But only include exonic variants
+#use same dataset of swegen variants as for the same comparison in master thesis, so we get a direct comparison of plots.
+swegen38<-read_tsv("~/Documents/Windows_Subsystem/University/Master Thesis/R and outputs/Statistical_Test/ESR1/hglft_genome_27da8_d7c440.bed", col_names=FALSE)
+
+swegen38 %>% 
+  rename("chrom"=X1) %>% 
+  rename("position"=X2) %>% 
+  select(!c(X3, X5)) %>% 
+  separate(X4, c("ref", "alt", "Allele_Frequency_Expected", "Observed_Expected"), sep="_") %>% 
+  select(!Observed_Expected) %>% 
+  mutate(Allele_Frequency_Expected=as.double(Allele_Frequency_Expected))->swegen_alt
+
+# Read in exonic AF
+AF_Scanb<-read_tsv("~/Documents/PhD/Result_Exploration/AF_270324.tsv")
+
+AF_Scanb %>% 
+  separate(col=Location, c("other", "alt"), sep="\\(") %>%
+  separate(col=other, c("chrom", "temp", "ref", "empty"), sep="_") %>%
+  mutate(position=as.double(temp)+1) %>% #because my file coordinates are zero based
+  select(!empty) %>% 
+  mutate(alt=str_replace(alt, "\\)", "")) %>%
+  inner_join(swegen_alt)->comparison_data
+
+
+
+
+
+# make psi score distribution plots.
 
 #psi_files contains all the names to psi files.
 # read_files <- function(paths) {

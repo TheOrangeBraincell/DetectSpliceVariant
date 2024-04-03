@@ -89,8 +89,8 @@ print(args.InsertSize)
 
 if args.InsertSize:
     try:
-        insert_mean=float(args.InsertSize.split(" ")[1])
-        insert_sd=float(args.InsertSize.split(" ")[4].strip("\n"))
+        insert_mean=float(args.InsertSize.split(" ")[1].replace(",", "."))
+        insert_sd=float(args.InsertSize.split(" ")[4].strip("\n").replace(",","."))
     except:
         raise argparse.ArgumentTypeError("""Insert Sizes are either missing or
                                          of wrong format. Required format is:
