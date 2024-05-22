@@ -1,21 +1,25 @@
 ##22.09.23
-# Mirjam Karlsson-Müller
+# Mirjam Müller
 # Subprocesses Pipeline
 
 #To be run for every gene of the gene list. Core part of pipeline.
 #Inputs: 1. gene, 2. output directory, 3. refseq, 4. gencode, 5. parameter string
 start_pipeline=`date +%s`
 #Initialize log file for gene.
-echo "#Log file for ${1}" > Log_Files_genes/${1}_log.txt
+echo "#Log file for ${1}" > ${2}Log_Files_genes/${1}_log.txt
 
 #Start run of AS and variants parallel, as AS needs 2 cores and variants only needs 1.
 python Scripts/Identify_AS.py -o ${2}AS_Events/${1}_AS_events.tsv -n $1 -g $4 -r $3 >temp_AS_${1}.txt &
 python Scripts/vcf_location_table.py -s vcf_file_list.txt -o ${2}Variant_Locations/${1}_locations.tsv -n ${1} -r gene_ranges.bed >temp_Var_${1}.txt &
 wait #So both processes are done before we proceed.
 
+#Check if scripts ran successfully, if they didnt, exit Run_Pipeline.sh.
+tail -n 1 temp_AS_${1}.txt | grep -q '^Run time' || { echo "Crash: Script Identify_AS.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+tail -n 1 temp_Var_${1}.txt | grep -q '^Run time' || { echo "Crash: Script vcf_location_table.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+
 #Add temp log files into the general gene log file!
-cat temp_AS_${1}.txt >>Log_Files_genes/${1}_log.txt
-cat temp_Var_${1}.txt >>Log_Files_genes/${1}_log.txt
+cat temp_AS_${1}.txt >>${2}Log_Files_genes/${1}_log.txt
+cat temp_Var_${1}.txt >>${2}Log_Files_genes/${1}_log.txt
 #Delete temporary log files.
 rm temp_AS_${1}.txt
 rm temp_Var_${1}.txt 
@@ -26,15 +30,24 @@ python Scripts/PsiScores.py -i ${2}AS_Events/${1}_AS_events.tsv -o ${2}PSI_Table
 python Scripts/utr_variants.py -v ${2}Variant_Locations/${1}_locations.tsv -o ${2}Variant_Locations/${1}_locations_noutr.tsv -n $1 -g $4 -r $3 >> temp_UTR_${1}.txt &
 #wait for both processes to finish
 wait
+
+#Check if scripts ran successfully, if they didnt, exit Run_Pipeline.sh
+tail -n 1 temp_PSI_${1}.txt | grep -q '^Run time' || { echo "Crash: Script PsiScores.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+tail -n 1 temp_UTR_${1}.txt | grep -q '^Run time' || { echo "Crash: Script utr_variants.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+
 #Add temp log files to general gene log file
-cat temp_PSI_${1}.txt >> Log_Files_genes/${1}_log.txt
-cat temp_UTR_${1}.txt >> Log_Files_genes/${1}_log.txt
+cat temp_PSI_${1}.txt >> {2}Log_Files_genes/${1}_log.txt
+cat temp_UTR_${1}.txt >> {2}Log_Files_genes/${1}_log.txt
 #delete temporary log files
 rm temp_PSI_${1}.txt
 rm temp_UTR_${1}.txt
 
+
 #The first result exploration showed that only the genotypes for exon variants are reliable. So we keep only those.
-python Scripts/Exon_Variants.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -g $4 -r $3 -o ${2}Exon_Variants/${1}_exonvar.tsv
+python Scripts/Exon_Variants.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -g $4 -r $3 -o ${2}Exon_Variants/${1}_exonvar.tsv >> {2}Log_Files_genes/${1}_log.txt
+
+#Check if scripts ran successfully, if they didnt, exit Run_Pipeline.sh
+tail -n 1 {2}Log_Files_genes/${1}_log.txt | grep -q '^Run time' || { echo "Crash: Script Exon_Variants.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
 
 
 #When that one is done we do genotypes.
@@ -46,7 +59,7 @@ number_lines=$((`wc -l < bam_file_list.txt`/$how_many +1))
 split -l $number_lines bam_file_list.txt ${1}_split_
 #make bed file out of locations
 echo ""> ${1}_variants.bed;
-cat ${2}Exon_Variants/${1}_exonvar.tsv | grep -v "^#" | grep -v "^Location"| cut -f1 | while read var_ID; do echo $var_ID | awk -F '_' '{print $1"\t"$2"\t"$2+1"\t"$1"_"$2"_"$3"_"$4"\t.\t+"}' >> ${1}_variants.bed; done
+cat ${2}Exon_Variants/${1}_exonvar.tsv | grep -v "^Location"| cut -f1 | while read var_ID; do echo $var_ID | awk -F '_' '{print $1"\t"$2"\t"$2+1"\t"$1"_"$2"_"$3"_"$4"\t.\t+"}' >> ${1}_variants.bed; done
 
 for file in ${1}_split_*; do Scripts/bedtools.sh $file ${1}_variants.bed temp_${file}.tsv > log_${file}.tsv & done
 wait
@@ -73,8 +86,12 @@ rm ${1}_cut_*
 rm log_${1}_split_*
 
 #When that one is done, we need to read off the read depth table to generate the genotypes.
-python Scripts/genotype.py -v ${2}Exon_Variants/${1}_exonvar.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1 >>Log_Files_genes/${1}_log.txt
+python Scripts/genotype.py -v ${2}Exon_Variants/${1}_exonvar.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1 >>${2}Log_Files_genes/${1}_log.txt
+
+#Check if scripts ran successfully, if they didnt, exit Run_Pipeline.sh
+tail -n 1 {2}Log_Files_genes/${1}_log.txt | grep -q '^Run time' || { echo "Crash: Script genotype.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+
 
 end_pipeline=`date +%s`
 runtime=$((end_pipeline-start_pipeline))
-echo "Runtime for gene ${1} is ${runtime} seconds" >> Log_Files_genes/${1}_log.txt
+echo "Runtime for gene ${1} is ${runtime} seconds" >> ${2}Log_Files_genes/${1}_log.txt

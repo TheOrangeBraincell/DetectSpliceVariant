@@ -11,4 +11,5 @@ bedtools multicov -p -bams $files -bed $2 > $3
 
 end=`date +%s`
 runtime=$((end-start))
+echo "Finished bedtools"
 echo $runtime

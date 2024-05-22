@@ -155,7 +155,7 @@ def merge_nested_dict(list_of_dicts):
 
 start_time=time.time()
 
-print("Starting Identify AS script! ")
+print("Running Exon_Variants.py")
 # 1. Process databases in parallel.
 
 # Initialize
@@ -182,6 +182,7 @@ print("Creating Database Dictionary: Done! \n", end="\r")
 #exonvariants = open("ESR1_exon_variants.bed", "w")
 # Now we read in the variants, check if they are in an exon and if they are, write them into output.
 
+print("Going through Variants.")
 with open(args.variants, "r") as genotype, open(args.out,"w") as out:
     for line in genotype:
         if line.startswith("#"):
@@ -213,7 +214,7 @@ with open(args.variants, "r") as genotype, open(args.out,"w") as out:
 
 #variants.close()
 #exonvariants.close()
-
+print("Found all Variants in Exons!")
 #%% Timer
 
-print("Run time: {:.2f} seconds.".format(time.time()-start_time))
+print("Run time Exon_Variants.py: {:.2f} seconds.".format(time.time()-start_time))

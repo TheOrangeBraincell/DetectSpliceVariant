@@ -2,7 +2,7 @@
 """
 Date: Fri Jul 14 08:56:18 2023
 File Name: PsiScores.py
-Author: Mirjam Karlsson-Müller
+Author: Mirjam Müller
 
 Description:
     Takes a table of AS events and scores them for each sample in the input folder, 
@@ -884,4 +884,4 @@ with open(args.out, "w") as outfile:
 print("PSI script complete!")
 #%% End time
 
-print("Run time: {:.2f} seconds.".format(time.time()-start_time))  
+print("Run time PsiScores.py: {:.2f} seconds.".format(time.time()-start_time))  

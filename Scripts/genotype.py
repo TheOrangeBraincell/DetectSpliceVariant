@@ -2,7 +2,7 @@
 """
 Date: Thu Sep 28 10:39:07 2023
 File Name: genotype.py
-Author: Mirjam Karlsson-Müller
+Author: Mirjam Müller
 
 Description:
     Reads in the variant locations and determines genotype for samples
@@ -10,11 +10,6 @@ Description:
     based on read depth found in Read_Depth directory.
     
 List of Functions:
-    
-Procedure: 
-    1.
-    2.
-    3.
     
 Useage:
     python ../gitrepo/genotype.py -v ESR1_locations.tsv -r Read_Depth/ESR1_read_depth.tsv -g ESR1 -o ESR1_genotypes.tsv
@@ -49,6 +44,7 @@ args = parser.parse_args()
 #%% 0.3 Start Timer
 
 start_time=time.time()
+print("Running Script genotype.py.")
 
 #%% 1. Read in Read depth table.
 
@@ -105,4 +101,4 @@ with open(args.variant, "r") as variants, open(args.output, "w") as out:
 
 #%% End Timer
 
-print("Run time: {:.2f} seconds.".format(time.time()-start_time))  
+print("Run time genotype.py: {:.2f} seconds.".format(time.time()-start_time))  

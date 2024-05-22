@@ -13,6 +13,7 @@ setwd("/home/mirjam/Documents/PhD/Result_Exploration")
 psi_counts<-read_delim("AS_counts.txt", col_names = FALSE)
 genotype_counts<-read_delim("variant_counts.txt", col_names = FALSE)
 
+psi_counts
 psi_counts %>% 
   filter(X1>1) %>% #to remove empty files
   mutate(counts=X1-1) %>% #cause theres a file header.
@@ -27,7 +28,7 @@ psi_counts %>%
             max_counts = max(counts),
             total_counts=sum(counts))
 
-genotype_counts %>% 
+  genotype_counts %>% 
   filter(X1>7) %>% #to remove empty files
   mutate(counts=X1-7) %>% #cause theres a file header.
   mutate(gene=X2) %>% 
@@ -41,6 +42,38 @@ genotype_counts %>%
             max_counts = max(counts),
             total_counts=sum(counts))
 
+#Not same amount of genes. check
+genotype_counts %>% 
+  filter(X1>7) %>% #to remove empty files
+  mutate(counts=X1-7) %>% #cause theres a file header.
+  mutate(gene=X2) %>% 
+  filter(gene!="total") %>% 
+  select(!c(X1, X2)) -> genotypes_alt
+
+psi_counts %>% 
+  filter(X1>1) %>% #to remove empty files
+  mutate(counts=X1-1) %>% #cause theres a file header.
+  filter(X2!="total") %>%  #theres a sum line at the end
+  mutate(gene=X2) %>% 
+  select(!c(X1, X2)) %>% 
+  inner_join(genotypes_alt, by="gene")
+
+
+setwd("~/Documents/PhD/StatisticalComparison/")  
+exon_variants<-read_tsv("variant_counts_exon.txt", col_names = F)
+
+exon_variants %>% 
+  mutate(counts=X1) %>%
+  summarize(mean_counts = mean(counts),
+            SD_counts = sd(counts),
+            median_counts = median(counts),
+            IQR_counts = IQR(counts),
+            min_counts = min(counts),
+            max_counts = max(counts),
+            total_counts=sum(counts))
+
+
+  
 #Some overview plots too! For the distribution of variables.
 plot1<-genotype_counts %>%
   filter(X1>7) %>% #to remove empty files

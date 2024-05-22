@@ -317,7 +317,7 @@ def add_to(events):
 
 start_time=time.time()
 
-print("Starting Identify AS script! ")
+print("Running Identify_AS.py ")
 #%% 1. Process databases in parallel.
 
 #Initialize
@@ -669,4 +669,4 @@ out.close()
 
 #%% Timer
 
-print("Run time: {:.2f} seconds.".format(time.time()-start_time)) 
+print("Run time Identify_AS.py: {:.2f} seconds.".format(time.time()-start_time)) 

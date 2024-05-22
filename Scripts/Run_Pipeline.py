@@ -2,7 +2,7 @@
 """
 Date: Mon Aug 21 12:51:16 2023
 File Name: Run_Pipeline.py
-Author: Mirjam Karlsson-Müller
+Author: Mirjam Müller
 
 Description:
     Framework for the pipeline. Reads in inputs, allocates resources and runs 
@@ -204,8 +204,8 @@ if not os.path.isdir(args.out+"/Genotype_Tables"):
 if not os.path.isdir(args.out+"/Read_Depth"):
     os.mkdir(args.out+"/Read_Depth")
 #We also need a folder for the logfiles for the pipeline run for each gene.
-if not os.path.isdir("Log_Files_genes"):
-    os.mkdir("Log_Files_genes")
+if not os.path.isdir(args.out+"/Log_Files_genes"):
+    os.mkdir(args.out+"/Log_Files_genes")
 #And for Database for insert size
 if not os.path.isdir("Database"):
     os.mkdir("Database")
@@ -302,4 +302,4 @@ if __name__ == '__main__':
         
 #%% Time End
 print("Pipeline Run completed!")
-print("Run time: {:.2f} seconds.".format(time.time()-start_time))
+print("Run time Run_Pipeline.py: {:.2f} seconds.".format(time.time()-start_time))

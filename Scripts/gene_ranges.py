@@ -2,7 +2,7 @@
 """
 Date: Mon Jul 10 13:04:13 2023
 File Name: gene_ranges.py
-Author: Mirjam Karlsson-Müller
+Author: Mirjam Müller
 
 Description:
     Takes a list of gene names as input file, returns an output table containing
@@ -124,4 +124,4 @@ with open(args.out, "w") as outfile:
 
 #%% Time
 
-print("Run time: {:.2f} seconds.".format(time.time()-start_time))  
+print("Run time gene_ranges.py: {:.2f} seconds.".format(time.time()-start_time))  

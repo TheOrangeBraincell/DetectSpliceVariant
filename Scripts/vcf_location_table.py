@@ -2,7 +2,7 @@
 """
 Date: Thu Nov  3 13:01:32 2022
 File Name: vcf_location_table.py
-Author: Mirjam Karlsson-Müller
+Author: Mirjam Müller
 
 Description:
     Parses through all variant calling files from a cohort and makes a list of all
@@ -46,6 +46,7 @@ import time
 #%% Start Timer
 
 start_time=time.time()
+print("Running vcf_location_table.py.")
 
 
 #%% Argparse
@@ -75,7 +76,7 @@ args = parser.parse_args()
 #     quit()
 
 #%% Find gene information
-print("Starting vcf parsing script!")
+print("Starting vcf parsing!")
 
 chromosomes=["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","X", "Y", "M"]
 Gene_found=False
@@ -380,4 +381,4 @@ print("Writing Location Table: Done          \n",end="\r")
 
 #%% Stop Timer
 
-print("Run time: {:.2f} seconds.".format(time.time()-start_time))      
+print("Run time vcf_location_table.py: {:.2f} seconds.".format(time.time()-start_time))      

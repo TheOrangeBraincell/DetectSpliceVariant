@@ -144,6 +144,7 @@ def merge_nested_dict(list_of_dicts):
 #%% 0.3 Start Timer
 
 start_time=time.time()
+print("Running utr_variants.py.")
 
 #%% 1. Read in Gencode and Refseq. 
 
@@ -239,6 +240,7 @@ for trans_ID in gene_dict:
                             #break loop of utrs- otherwise theres an error.
                             break_loops=True
 
+print("Found UTR.")
 #%% 3. Go through variant file.
 
 with open(args.variant, "r") as variants, open(args.out, "w") as out:
@@ -263,7 +265,7 @@ with open(args.variant, "r") as variants, open(args.out, "w") as out:
             if to_write==True:
                 out.write(line)
 
-
+print("Variants in UTR removed.")
 #%% End Timer
 
-print("Run time: {:.2f} seconds.".format(time.time()-start_time))  
+print("Run time utr_variants.py: {:.2f} seconds.".format(time.time()-start_time))  
