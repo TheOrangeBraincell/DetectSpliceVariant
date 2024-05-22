@@ -59,8 +59,8 @@ number_lines=$((`wc -l < bam_file_list.txt`/$how_many +1))
 split -l $number_lines bam_file_list.txt ${1}_split_
 #make bed file out of locations
 echo ""> ${1}_variants.bed;
-cat ${2}Exon_Variants/${1}_exonvar.tsv | grep -v "^Location"| cut -f1 | while read var_ID; do echo $var_ID | awk -F '_' '{print $1"\t"$2"\t"$2+1"\t"$1"_"$2"_"$3"_"$4"\t.\t+"}' >> ${1}_variants.bed; done
 
+awk -F'\t' '{split($1, arr, "_"); start=arr[2]; end=start+1; print arr[1] "\t" start "\t" end "\t" $1}' ${2}Exon_Variants/${1}_exonvar.tsv > ${1}_variants.bed
 for file in ${1}_split_*; do Scripts/bedtools.sh $file ${1}_variants.bed temp_${file}.tsv > log_${file}.tsv & done
 wait
 #Add header to read depth output
