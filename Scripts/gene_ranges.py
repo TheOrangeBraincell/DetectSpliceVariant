@@ -117,7 +117,7 @@ for file in [args.gencode, args.refseq]:
 
 with open(args.out, "w") as outfile:
     #A bed file traditionally does not have a header, but i think it would help.
-    outfile.write("chrom\tstart\tstop\tgene\tscore\tstrand\n")
+    #outfile.write("chrom\tstart\tstop\tgene\tscore\tstrand\n")
     #write entries into file
     for gene in gene_ranges:
         outfile.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(*gene_ranges[gene]))

@@ -14,8 +14,8 @@ python Scripts/vcf_location_table.py -s vcf_file_list.txt -o ${2}Variant_Locatio
 wait #So both processes are done before we proceed.
 
 #Check if scripts ran successfully, if they didnt, exit Run_Pipeline.sh.
-tail -n 1 temp_AS_${1}.txt | grep -q '^Run time' || { echo "Crash: Script Identify_AS.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
-tail -n 1 temp_Var_${1}.txt | grep -q '^Run time' || { echo "Crash: Script vcf_location_table.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+tail -n 1 temp_AS_${1}.txt | grep -q 'Run time' || { echo "Crash: Script Identify_AS.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+tail -n 1 temp_Var_${1}.txt | grep -q 'Run time' || { echo "Crash: Script vcf_location_table.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
 
 #Add temp log files into the general gene log file!
 cat temp_AS_${1}.txt >>${2}Log_Files_genes/${1}_log.txt
@@ -32,8 +32,8 @@ python Scripts/utr_variants.py -v ${2}Variant_Locations/${1}_locations.tsv -o ${
 wait
 
 #Check if scripts ran successfully, if they didnt, exit Run_Pipeline.sh
-tail -n 1 temp_PSI_${1}.txt | grep -q '^Run time' || { echo "Crash: Script PsiScores.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
-tail -n 1 temp_UTR_${1}.txt | grep -q '^Run time' || { echo "Crash: Script utr_variants.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+tail -n 1 temp_PSI_${1}.txt | grep -q 'Run time' || { echo "Crash: Script PsiScores.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+tail -n 1 temp_UTR_${1}.txt | grep -q 'Run time' || { echo "Crash: Script utr_variants.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
 
 #Add temp log files to general gene log file
 cat temp_PSI_${1}.txt >> {2}Log_Files_genes/${1}_log.txt
@@ -47,7 +47,7 @@ rm temp_UTR_${1}.txt
 python Scripts/Exon_Variants.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -g $4 -r $3 -o ${2}Exon_Variants/${1}_exonvar.tsv >> {2}Log_Files_genes/${1}_log.txt
 
 #Check if scripts ran successfully, if they didnt, exit Run_Pipeline.sh
-tail -n 1 {2}Log_Files_genes/${1}_log.txt | grep -q '^Run time' || { echo "Crash: Script Exon_Variants.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+tail -n 1 {2}Log_Files_genes/${1}_log.txt | grep -q 'Run time' || { echo "Crash: Script Exon_Variants.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
 
 
 #When that one is done we do genotypes.
@@ -89,7 +89,7 @@ rm log_${1}_split_*
 python Scripts/genotype.py -v ${2}Exon_Variants/${1}_exonvar.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1 >>${2}Log_Files_genes/${1}_log.txt
 
 #Check if scripts ran successfully, if they didnt, exit Run_Pipeline.sh
-tail -n 1 {2}Log_Files_genes/${1}_log.txt | grep -q '^Run time' || { echo "Crash: Script genotype.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+tail -n 1 {2}Log_Files_genes/${1}_log.txt | grep -q 'Run time' || { echo "Crash: Script genotype.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
 
 
 end_pipeline=`date +%s`
