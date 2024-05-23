@@ -233,8 +233,12 @@ print("Sample names are read in, genes are read in. ")
 #BAM file list (we dont check if its already there, as it might lead to faulty outputs if the sample list changes)
 #find all 
 subprocess.run(["find "+ args.bam+ " -name alignment.bam >all_bam_file_list.txt"], shell=True)
-#Exclude whats not on the list
-out=open("bam_file_list.txt", "w")
+
+#VCF list (same as for bam)
+subprocess.run(["find "+ args.vcf + " -name variants-annotated.vcf >all_vcf_file_list.txt"], shell=True)
+
+#Now we need to check that we have both bam and vcf files for each sample, and to only include files for the samples we have on the sample list
+bam_files={}
 with open("all_bam_file_list.txt", "r") as all_bam:
     for line in all_bam:
         sections=line.split("/")
@@ -242,12 +246,10 @@ with open("all_bam_file_list.txt", "r") as all_bam:
             if i.startswith("S00"):
                 #thats the sample name
                 if i in sample_names:
-                    out.write(line)
-                    
-out.close()
-#VCF list (same as for bam)
-subprocess.run(["find "+ args.vcf + " -name variants-annotated.vcf >all_vcf_file_list.txt"], shell=True)
-out=open("vcf_file_list.txt", "w")
+                    bam_files[i]=line.strip("\n")
+                break
+
+vcf_files={}
 with open("all_vcf_file_list.txt", "r") as all_vcf:
     for line in all_vcf:
         sections=line.split("/")
@@ -255,9 +257,18 @@ with open("all_vcf_file_list.txt", "r") as all_vcf:
             if i.startswith("S00"):
                 #thats the sample name
                 if i in sample_names:
-                    out.write(line)
-                    break
-out.close()
+                    vcf_files[i]=line.strip("\n")
+                break
+
+#Now check for which samples we have both files.
+with open("vcf_file_list.txt", "w") as vcf, open("bam_file_list.txt", "w") as bam:
+    for sample in sample_names:
+        if sample in vcf_files and sample in bam_files:
+            vcf.write(vcf_files[sample])
+            bam.write(bam_files[sample])
+        else:
+            print("For sample " + sample+ " we could not find the corresponding bam and vcf files. It will be excluded from the analysis.")
+
 #Gene ranges file (same as bam and vcf but for genes.)
 #This requires the python file gene_ranges to run.
 subprocess.run(["python Scripts/gene_ranges.py -g "+ args.gencode+ " -r "+ args.refseq+ " -o gene_ranges.bed -i "+ args.genes], shell=True)
