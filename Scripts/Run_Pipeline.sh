@@ -36,18 +36,18 @@ tail -n 1 temp_PSI_${1}.txt | grep -q 'Run time' || { echo "Crash: Script PsiSco
 tail -n 1 temp_UTR_${1}.txt | grep -q 'Run time' || { echo "Crash: Script utr_variants.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
 
 #Add temp log files to general gene log file
-cat temp_PSI_${1}.txt >> {2}Log_Files_genes/${1}_log.txt
-cat temp_UTR_${1}.txt >> {2}Log_Files_genes/${1}_log.txt
+cat temp_PSI_${1}.txt >> ${2}Log_Files_genes/${1}_log.txt
+cat temp_UTR_${1}.txt >> ${2}Log_Files_genes/${1}_log.txt
 #delete temporary log files
 rm temp_PSI_${1}.txt
 rm temp_UTR_${1}.txt
 
 
 #The first result exploration showed that only the genotypes for exon variants are reliable. So we keep only those.
-python Scripts/Exon_Variants.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -g $4 -r $3 -o ${2}Exon_Variants/${1}_exonvar.tsv >> {2}Log_Files_genes/${1}_log.txt
+python Scripts/Exon_Variants.py -v ${2}Variant_Locations/${1}_locations_noutr.tsv -g $4 -r $3 -o ${2}Exon_Variants/${1}_exonvar.tsv >> ${2}Log_Files_genes/${1}_log.txt
 
 #Check if scripts ran successfully, if they didnt, exit Run_Pipeline.sh
-tail -n 1 {2}Log_Files_genes/${1}_log.txt | grep -q 'Run time' || { echo "Crash: Script Exon_Variants.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+tail -n 1 ${2}Log_Files_genes/${1}_log.txt | grep -q 'Run time' || { echo "Crash: Script Exon_Variants.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
 
 
 #When that one is done we do genotypes.
@@ -60,7 +60,7 @@ split -l $number_lines bam_file_list.txt ${1}_split_
 #make bed file out of locations
 echo ""> ${1}_variants.bed;
 
-awk -F'\t' '{split($1, arr, "_"); start=arr[2]; end=start+1; print arr[1] "\t" start "\t" end "\t" $1}' ${2}Exon_Variants/${1}_exonvar.tsv > ${1}_variants.bed
+tail -n +2 ${2}Exon_Variants/${1}_exonvar.tsv| awk -F'\t' '{split($1, arr, "_"); start=arr[2]; end=start+1; print arr[1] "\t" start "\t" end "\t" $1}' > ${1}_variants.bed
 for file in ${1}_split_*; do Scripts/bedtools.sh $file ${1}_variants.bed temp_${file}.tsv > log_${file}.tsv & done
 wait
 #Add header to read depth output
@@ -89,7 +89,7 @@ rm log_${1}_split_*
 python Scripts/genotype.py -v ${2}Exon_Variants/${1}_exonvar.tsv -r ${2}Read_Depth/${1}_read_depth.tsv -o ${2}Genotype_Tables/${1}_genotypes.tsv -g $1 >>${2}Log_Files_genes/${1}_log.txt
 
 #Check if scripts ran successfully, if they didnt, exit Run_Pipeline.sh
-tail -n 1 {2}Log_Files_genes/${1}_log.txt | grep -q 'Run time' || { echo "Crash: Script genotype.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
+tail -n 1 ${2}Log_Files_genes/${1}_log.txt | grep -q 'Run time' || { echo "Crash: Script genotype.py terminated with an error message, stop pipeline run for gene $1"; exit 1; }
 
 
 end_pipeline=`date +%s`

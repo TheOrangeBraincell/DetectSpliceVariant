@@ -246,7 +246,7 @@ with open("all_bam_file_list.txt", "r") as all_bam:
             if i.startswith("S00"):
                 #thats the sample name
                 if i in sample_names:
-                    bam_files[i]=line.strip("\n")
+                    bam_files[i]=line
                 break
 
 vcf_files={}
@@ -257,7 +257,7 @@ with open("all_vcf_file_list.txt", "r") as all_vcf:
             if i.startswith("S00"):
                 #thats the sample name
                 if i in sample_names:
-                    vcf_files[i]=line.strip("\n")
+                    vcf_files[i]=line
                 break
 
 #Now check for which samples we have both files.
