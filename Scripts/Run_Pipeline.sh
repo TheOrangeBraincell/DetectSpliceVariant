@@ -66,8 +66,8 @@ wait
 #Add header to read depth output
 cat ${1}_split_* | tr '\n' '\t' | paste > ${2}Read_Depth/${1}_read_depth.tsv
 #add locations
-cut -f1-6 temp_${1}_split_aa.tsv > ${1}_locations.txt
-for file in temp_${1}_split_*; do cut -f7- $file > ${1}_cut_${file}; done
+cut -f1-4 temp_${1}_split_aa.tsv > ${1}_locations.txt
+for file in temp_${1}_split_*; do cut -f5- $file > ${1}_cut_${file}; done
 paste ${1}_cut_* > ${1}_counts.txt
 paste ${1}_locations.txt ${1}_counts.txt >> ${2}Read_Depth/${1}_read_depth.tsv
 

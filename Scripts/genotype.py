@@ -59,7 +59,7 @@ with open(args.read_depth, "r") as depths:
         else:
             read_depths[line.split("\t")[3]]=dict()
             #add all samples to inner dictionary
-            counts=line.strip("\n").split("\t")[6:]
+            counts=line.strip("\n").split("\t")[4:]
             
             if len(sample_names)!=len(counts):
                 print("There is an error with the number of columns!")
