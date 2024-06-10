@@ -54,7 +54,7 @@ with open(args.read_depth, "r") as depths:
     for line in depths:
         if not line.startswith("chr"):
             #then thats the bam file names, i.e. way to get the sample.
-            p=re.compile('(S0\d{5})')
+            p=re.compile(r'(S0\d{5})')
             sample_names=p.findall(line)
         else:
             read_depths[line.split("\t")[3]]=dict()
