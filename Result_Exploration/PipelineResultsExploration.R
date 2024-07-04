@@ -9,6 +9,7 @@ library(GenomicRanges)
 
 setwd("/home/mirjam/Documents/PhD/Result_Exploration")
 
+##########################################################################################################
 #Lets do an overview of how many variants and events we have in those genes.
 psi_counts<-read_delim("AS_counts.txt", col_names = FALSE)
 genotype_counts<-read_delim("variant_counts.txt", col_names = FALSE)
@@ -58,6 +59,8 @@ psi_counts %>%
   select(!c(X1, X2)) %>% 
   inner_join(genotypes_alt, by="gene")
 
+##########################################################################################################
+#Overview on exon variants
 
 setwd("~/Documents/PhD/StatisticalComparison/")  
 exon_variants<-read_tsv("variant_counts_exon.txt", col_names = F)
@@ -104,6 +107,7 @@ combined_plots<-plot1+plot2
 print(combined_plots)
 #both show exponential distribution. Very skewed.
 
+##########################################################################################################
 #Read in data.
 setwd("/home/mirjam/Documents/PhD/Download_060224/")
 genotype_files<-list.files("/home/mirjam/Documents/PhD/Download_060224", pattern = "genotypes.tsv", full.names = FALSE)
@@ -137,6 +141,8 @@ test<-genotype_files[1:10]
 # frequent_variants %>% 
 #   write_tsv("frequent_variants_070224.tsv")
 
+
+##########################################################################################################
 setwd("/home/mirjam/Documents/PhD/Result_Exploration")
 variants <- read_tsv("frequent_variants_070224.tsv")
   #Do they follow a Hardy Weinberg distribution?
@@ -210,6 +216,8 @@ hw_results %>%
 
 #Now looking at the variants again, we try to find the annotated ones. Which means another long reading in loop with filtering...
 
+
+##########################################################################################################
 # Comparing allele frequencies to known variants:
 #We do ESR1 because otherwise too many variants...
 
@@ -217,8 +225,8 @@ hw_results %>%
 swegen38<-read_tsv("~/Documents/Windows_Subsystem/University/Master Thesis/R and outputs/Statistical_Test/ESR1/hglft_genome_27da8_d7c440.bed", col_names=FALSE)
 
 swegen38 %>% 
-  rename("chrom"=X1) %>% 
-  rename("position"=X2) %>% 
+  rename(X1="chrom") %>% 
+  rename(X2="position") %>% 
   select(!c(X3, X5)) %>% 
   separate(X4, c("ref", "alt", "Allele_Frequency_Expected", "Observed_Expected"), sep="_") %>% 
   select(!Observed_Expected) %>% 
@@ -246,7 +254,7 @@ genotype %>%
   mutate("Alt"=2*hmza/(2*total)) %>% 
   mutate('Allele_Frequency_observed'=(2*hmza + hetz)/(2*total)) %>% 
   select(c(chrom, position, ref, alt, total, Allele_Frequency_observed)) %>% 
-  rename("Number_Samples"=total)-> genotypes_expanded
+  rename(total="Number_of_Samples")-> genotypes_expanded
 
 #Exclude non coding variants
 annotation<-read_tsv("~/Documents/Windows_Subsystem/University/Master Thesis/R and outputs/Database/gencode.v39.annotation.gff3", skip=7, col_names=FALSE)
@@ -319,30 +327,132 @@ read_depth %>%
 
 write_tsv(comparison_w_readdepth, "SWEGEN_SCANB_readdepth.tsv")
 
+##########################################################################################################
+
 #Remake same plot for all genes not just ESR1. But only include exonic variants
-#use same dataset of swegen variants as for the same comparison in master thesis, so we get a direct comparison of plots.
-swegen38<-read_tsv("~/Documents/Windows_Subsystem/University/Master Thesis/R and outputs/Statistical_Test/ESR1/hglft_genome_27da8_d7c440.bed", col_names=FALSE)
+data<-read_tsv("~/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration/SweGen_Comparison/swegen_scanb_variants.tsv", col_names=T)
+data
 
-swegen38 %>% 
-  rename("chrom"=X1) %>% 
-  rename("position"=X2) %>% 
-  select(!c(X3, X5)) %>% 
-  separate(X4, c("ref", "alt", "Allele_Frequency_Expected", "Observed_Expected"), sep="_") %>% 
-  select(!Observed_Expected) %>% 
-  mutate(Allele_Frequency_Expected=as.double(Allele_Frequency_Expected))->swegen_alt
+data %>% 
+  #The other 5000 have several AF for several nucleotides. but we have enough data points anyways, so i skip them. could be extracted tho.
+  filter(alt_SW==alt_SC) %>% 
+  filter(!grepl(",", AF_SW)) %>%
+  mutate(AF_SW=as.numeric(AF_SW))-> data_alt 
 
-# Read in exonic AF
-AF_Scanb<-read_tsv("~/Documents/PhD/Result_Exploration/AF_270324.tsv")
+data_alt %>% 
+  ggplot(aes(x=AF_SC, y=AF_SW)) +
+  geom_jitter()+
+  theme_classic()
 
-AF_Scanb %>% 
-  separate(col=Location, c("other", "alt"), sep="\\(") %>%
-  separate(col=other, c("chrom", "temp", "ref", "empty"), sep="_") %>%
-  mutate(position=as.double(temp)+1) %>% #because my file coordinates are zero based
-  select(!empty) %>% 
-  mutate(alt=str_replace(alt, "\\)", "")) %>%
-  inner_join(swegen_alt)->comparison_data
+#Do this with a random subset
+set.seed(12345)
+selected_rows<-sample(nrow(data_alt), 8000)
+random_subset<-data_alt[selected_rows,]
+
+random_subset %>% 
+  ggplot(aes(x=AF_SC, y=AF_SW)) +
+  geom_jitter()+
+  theme_classic()
+
+#Linear regression plot
+fit1<-lm(AF_SW ~AF_SC, data=data_alt)
+summary(fit1)
+
+ggplot(data_alt, aes(x = AF_SC, y = AF_SW)) + 
+  geom_point(alpha=0.1) +
+  stat_smooth(method = "lm", col = "red")+
+  theme_classic()
+
+ggplotRegression <- function (fit) {
+  
+  require(ggplot2)
+  
+  ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model)[1])) + 
+    geom_point(alpha=0.1) +
+    stat_smooth(method = "lm", col = "red") +
+    labs(title = paste("Adj R2 = ",signif(summary(fit)$adj.r.squared, 5),
+                       "Intercept =",signif(fit$coef[[1]],5 ),
+                       " Slope =",signif(fit$coef[[2]], 5),
+                       " P =",signif(summary(fit)$coef[2,4], 5)),
+         x = "Allele Frequency SCANB", y="Allele Frequency SWEGEN")+
+    theme_classic()+
+    theme(axis.title.x = element_text(size = 14),
+          axis.title.y = element_text(size = 14))
+}
+
+ggplotRegression(fit1)
+
+#Same for more frequent variant for better resolution. First for 1 % of samples, i.e. 345 samples with genotype.
+data2<-read_tsv("~/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration/SweGen_Comparison/swegen_scanb345_variants.tsv", col_names=T)
+data2
+
+data2 %>% 
+  #The other 5000 have several AF for several nucleotides. but we have enough data points anyways, so i skip them. could be extracted tho.
+  filter(alt_SW==alt_SC) %>% 
+  filter(!grepl(",", AF_SW)) %>%
+  mutate(AF_SW=as.numeric(AF_SW))-> data2_alt 
+
+#Linear regression plot
+fit2<-lm(AF_SW ~AF_SC, data=data2_alt)
+summary(fit2)
+
+ggplotRegression(fit2)
+
+#That is MUCH better.
+
+#Lets also see it with a cutoff of 100 samples, to have a minimum AF of 0.5 %
+data3<-read_tsv("~/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration/SweGen_Comparison/swegen_scanb100_variants.tsv", col_names=T)
+data3
+
+data3 %>% 
+  #The other 5000 have several AF for several nucleotides. but we have enough data points anyways, so i skip them. could be extracted tho.
+  filter(alt_SW==alt_SC) %>% 
+  filter(!grepl(",", AF_SW)) %>%
+  mutate(AF_SW=as.numeric(AF_SW))-> data3_alt 
+
+#Linear regression plot
+fit3<-lm(AF_SW ~AF_SC, data=data3_alt)
+summary(fit3)
+
+ggplotRegression(fit3)
 
 
+# We want to know if there is an overrepresentation of one variant genotype over the other. so we plot majorities.
+data4<-read_tsv("~/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration/SweGen_Comparison/swegen_scanb345_variants.tsv", col_names=T)
+data4
+
+data4 %>% 
+  #The other 5000 have several AF for several nucleotides. but we have enough data points anyways, so i skip them. could be extracted tho.
+  filter(alt_SW==alt_SC) %>% 
+  filter(!grepl(",", AF_SW)) %>%
+  mutate(AF_SW=as.numeric(AF_SW))-> data4_alt 
+
+#Linear regression plot
+fit4<-lm(AF_SW ~AF_SC, data=data4_alt)
+fit4$model %>% 
+  left_join(data4_alt, by=c("AF_SW", "AF_SC"))
+
+data4_alt
+ggplot(data4_alt, aes(x = AF_SC, y = AF_SW, color=Majority_VarAllele)) + 
+  geom_point(alpha=0.1) +
+  stat_smooth(method = "lm", col = "red") +
+  labs(title = paste("Adj R2 = ",signif(summary(fit4)$adj.r.squared, 5),
+                     "Intercept =",signif(fit4$coef[[1]],5 ),
+                     " Slope =",signif(fit4$coef[[2]], 5),
+                     " P =",signif(summary(fit4)$coef[2,4], 5)),
+       x = "Allele Frequency SCANB", y="Allele Frequency SWEGEN")+
+  theme_classic()+
+  theme(axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14))
+
+fit4$model
+
+#We dont seem to see any overrepresentation at all... 
+
+#Lets check what the variants at AF 0 are and if we can explain those somehow.
+data4_alt %>% 
+  filter(AF_SC<0.01) %>% 
+  filter(AF_SW>0.05)# smaller than 1 % is still like 31'605 rows. Thats a lot! How do I check their expression?
 
 
 
