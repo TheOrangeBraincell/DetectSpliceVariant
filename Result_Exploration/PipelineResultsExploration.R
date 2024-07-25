@@ -4,15 +4,16 @@
 
 library(patchwork)
 library(genetics)
-library(tidyverse)
 library(GenomicRanges)
+library(tidyverse)
 
-setwd("/home/mirjam/Documents/PhD/Result_Exploration")
+setwd("/home/mirjam/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration")
 
 ##########################################################################################################
 #Lets do an overview of how many variants and events we have in those genes.
 psi_counts<-read_delim("AS_counts.txt", col_names = FALSE)
-genotype_counts<-read_delim("variant_counts.txt", col_names = FALSE)
+#genotype_counts<-read_delim("variant_counts.txt", col_names = FALSE)
+genotype_counts<-read_delim("exonic_counts.txt", col_names = FALSE)
 
 psi_counts
 psi_counts %>% 
@@ -29,51 +30,37 @@ psi_counts %>%
             max_counts = max(counts),
             total_counts=sum(counts))
 
-  genotype_counts %>% 
-  filter(X1>7) %>% #to remove empty files
-  mutate(counts=X1-7) %>% #cause theres a file header.
-  mutate(gene=X2) %>% 
-  filter(gene!="total") %>% 
-  select(!c(X1, X2)) %>% 
-  summarize(mean_counts = mean(counts),
-            SD_counts = sd(counts),
-            median_counts = median(counts),
-            IQR_counts = IQR(counts),
-            min_counts = min(counts),
-            max_counts = max(counts),
-            total_counts=sum(counts))
+  # genotype_counts %>%
+  # filter(X1>7) %>% #to remove empty files
+  # mutate(counts=X1-7) %>% #cause theres a file header.
+  # mutate(gene=X2) %>%
+  # filter(gene!="total") %>%
+  # select(!c(X1, X2)) %>%
+  # summarize(mean_counts = mean(counts),
+  #           SD_counts = sd(counts),
+  #           median_counts = median(counts),
+  #           IQR_counts = IQR(counts),
+  #           min_counts = min(counts),
+  #           max_counts = max(counts),
+  #           total_counts=sum(counts))
 
-#Not same amount of genes. check
+
+#use only exonic variants instead
+genotype_counts
 genotype_counts %>% 
-  filter(X1>7) %>% #to remove empty files
-  mutate(counts=X1-7) %>% #cause theres a file header.
-  mutate(gene=X2) %>% 
-  filter(gene!="total") %>% 
-  select(!c(X1, X2)) -> genotypes_alt
-
-psi_counts %>% 
   filter(X1>1) %>% #to remove empty files
   mutate(counts=X1-1) %>% #cause theres a file header.
-  filter(X2!="total") %>%  #theres a sum line at the end
   mutate(gene=X2) %>% 
+  drop_na() %>%  # To remove total line at the end, doesnt have a gene, thus NA 
   select(!c(X1, X2)) %>% 
-  inner_join(genotypes_alt, by="gene")
-
-##########################################################################################################
-#Overview on exon variants
-
-setwd("~/Documents/PhD/StatisticalComparison/")  
-exon_variants<-read_tsv("variant_counts_exon.txt", col_names = F)
-
-exon_variants %>% 
-  mutate(counts=X1) %>%
   summarize(mean_counts = mean(counts),
             SD_counts = sd(counts),
             median_counts = median(counts),
             IQR_counts = IQR(counts),
             min_counts = min(counts),
             max_counts = max(counts),
-            total_counts=sum(counts))
+            total_counts=sum(counts)) %>% 
+
 
 
   
@@ -89,7 +76,7 @@ plot1<-genotype_counts %>%
   theme_classic()+
   xlim(0, 400)+
   ylim(0, 3000)+
-  labs(title="Variants", x="counts of events per gene", y="frequency")
+  labs(title="Exonic Variants", x="Events per gene", y="Frequency")
 plot2<-psi_counts %>% 
   filter(X1>1) %>% #to remove empty files
   mutate(counts=X1-1) %>% #cause theres a file header.
@@ -101,7 +88,7 @@ plot2<-psi_counts %>%
   theme_classic()+
   xlim(0, 200)+
   ylim(0,3000)+
-  labs(title="AS events", x="counts of events per gene", y="frequency")
+  labs(title="Alternative Splicing", x="Events per gene", y="Frequency")
 
 combined_plots<-plot1+plot2
 print(combined_plots)
@@ -143,39 +130,40 @@ test<-genotype_files[1:10]
 
 
 ##########################################################################################################
-setwd("/home/mirjam/Documents/PhD/Result_Exploration")
-variants <- read_tsv("frequent_variants_070224.tsv")
-  #Do they follow a Hardy Weinberg distribution?
+setwd("/home/mirjam/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration/")
+variants <- read_tsv("germline_genotypes.tsv", col_names =T)
+#Do they follow a Hardy Weinberg distribution?
 # Theres an R package for that!
 # Count genotypes
-str(variants)
-head(variants) %>% 
-  mutate(Genotype=Gentoype) %>% 
-  select(!Gentoype) %>% 
-  filter(Genotype!="NE") %>%  
-  filter(Genotype!="ND") %>% 
-  select(c(Location,Genotype)) %>% 
-  mutate(Genotype=genotype(Genotype))-> temp_genotype
+# str(variants)
+# head(variants) %>% 
+#   mutate(Genotype=Gentoype) %>% 
+#   select(!Gentoype) %>% 
+#   filter(Genotype!="NE") %>%  
+#   filter(Genotype!="ND") %>% 
+#   select(c(Location,Genotype)) %>% 
+#   mutate(Genotype=genotype(Genotype))-> temp_genotype
 
-temp_genotype
-result<-HWE.test(temp_genotype)
-  
 variants %>% 
+  drop_na() %>% 
   select(Location) %>% 
   distinct(Location) -> Locations
 
 Locations<- list(Locations$Location)
-Locations
-variant_test<-variants
+
 result_df<- data.frame(matrix(ncol=2, nrow=0))
 colnames(result_df)<-c("Location", "Test_Result")
+
 for (l in Locations[[1]]) {
-  print(l)
-  variant_test %>% 
+  variants %>% 
     filter(Location==l) %>% 
-    mutate(Genotype=genotype(Gentoype)) %>% 
-    select(!c(Gentoype, Gene, Sample)) %>%  
-    drop_na(Genotype)-> genotypes
+    pivot_longer(cols=!c(Location, Gene), names_to="Sample", values_to="Genotype") %>% 
+    filter(Genotype != "NE" & Genotype != "ND") %>% 
+    drop_na() %>% 
+    #{ print(head(.)); . } %>%
+    mutate(Genotype=genotype(Genotype)) %>% 
+    drop_na(Genotype) %>% 
+    select(c(Genotype, Gene, Sample)) -> genotypes
   result<-capture.output(HWE.test(genotypes))
   new_row<-data.frame(l, result)
   result_df <-rbind(result_df, new_row)
@@ -185,7 +173,7 @@ for (l in Locations[[1]]) {
 str(result_df)
 result_df
 result_df %>% 
-     write_tsv("HWresults_140224.tsv")
+     write_tsv("HWresults_250724.tsv")
 
 #Parsed the results with python. Read them back in.
 hw_results <- read_tsv("HW_results_parsed.tsv")
@@ -454,49 +442,310 @@ data4_alt %>%
   filter(AF_SC<0.01) %>% 
   filter(AF_SW>0.05)# smaller than 1 % is still like 31'605 rows. Thats a lot! How do I check their expression?
 
+# Lets read in read depth for the variants.
+read_depth <- read_tsv("~/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration/SweGen_Comparison/swegen_scanb_rd.tsv")
 
+#Make comparison between "belly" and "line"
+read_depth %>% 
+  mutate(AF_SW=as.numeric(AF_SW)) %>% 
+  drop_na() %>% 
+  filter(AF_SC>= 0.1) %>% #Remove low allele frequency variants, as they are likely inaccurate due to location in exons.
+  mutate(group=if_else(AF_SC/AF_SW >= 1.5, "down", "up")) %>% 
+  ggplot(aes(x=as.factor(group), y = ReadDepth, fill=group))+
+  geom_boxplot()+
+  scale_y_log10(breaks=c(0, 0.1, 1, 10, 100, 1000))+
+  theme_classic()+
+  theme(legend.position="none")+
+  xlab("Group")+
+  ylab("Read Depth")+
+  stat_summary(
+    fun = mean,
+    geom = "text",
+    aes(label = sprintf("%.2f", ..y..)),
+    position = position_nudge(x = 0.25, y = -0.1),
+    color = "black",
+    size = 4
+  )
+    
 
+##########################################################################################################
 # make psi score distribution plots.
+setwd("~/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration/PSI")
 
-#psi_files contains all the names to psi files.
-# read_files <- function(paths) {
-#   df <- read_tsv(paths, col_names = TRUE) 
-#   #remove empty ones
-#   if (nrow(df)==0){
-#     return(NULL)
-#   }
-#   df %>% 
-#     mutate(file_path=paths) %>% 
-#     separate(file_path, into=c("gene", "file_end"), sep="_") %>% 
-#     select(-file_end) %>% 
-#     pivot_longer(cols=-c("Event", "gene"), names_to="Sample", values_to="PSI") %>% 
-#     drop_na()-> df_alt
-#   return(df_alt)
-# }
-# setwd("~/Documents/PhD/Download_060224/")
-# psi_scores<- bind_rows(lapply(psi_files, read_files))
+#One AS event type at a time, replace event abreviations, remove slice for anything thats not IR, CE.
+
+## IR 
+psi_scores<- read_tsv("IR_summary.tsv")
+
+psi_scores %>% 
+  slice_sample(n=10000000) %>% #10'000'000
+  ggplot(aes(x=PSI))+
+  geom_histogram()+
+  scale_y_log10()+
+  theme_classic()+
+  ggtitle("PSI distribution IR events, subset 10'000'000")
+
+#still need to do distribution plots that do not contain all events.
+
+psi_scores %>% 
+  slice_sample(n=10000000) %>% #10'000'000
+  group_by(Event) %>% 
+  filter(n_distinct(PSI) > 1) %>%
+  ungroup() %>%
+  ggplot(aes(x=PSI))+
+  geom_histogram()+
+  scale_y_log10()+
+  theme_classic()+
+  ggtitle("PSI distribution varying IR events, subset 10'000'000")
+
+rm(psi_scores)
+
+## CE
+
+psi_scores<- read_tsv("CE_summary.tsv")
+
+psi_scores %>% 
+  slice_sample(n=10000000) %>% #10'000'000
+  ggplot(aes(x=PSI))+
+  geom_histogram()+
+  scale_y_log10()+
+  theme_classic()+
+  ggtitle("PSI distribution CE events, subset 10'000'000")
+
+psi_scores %>% 
+  slice_sample(n=10000000) %>% #10'000'000
+  group_by(Event) %>% 
+  filter(n_distinct(PSI)>1) %>% 
+  ungroup() %>% 
+  ggplot(aes(x=PSI))+
+  geom_histogram()+
+  scale_y_log10()+
+  theme_classic()+
+  ggtitle("PSI distribution varying CE events, subset 10'000'000")
+
+rm(psi_scores)
+## AA
+psi_scores<- read_tsv("AA_summary.tsv")
+
+psi_scores %>% 
+  ggplot(aes(x=PSI))+
+  geom_histogram()+
+  scale_y_log10()+
+  theme_classic()+
+  ggtitle("PSI distribution AA events")
+
+rm(psi_scores)
+## AD
+psi_scores<- read_tsv("AD_summary.tsv")
+
+psi_scores %>% 
+  ggplot(aes(x=PSI))+
+  geom_histogram()+
+  scale_y_log10()+
+  theme_classic()+
+  ggtitle("PSI distribution AD events")
+
+rm(psi_scores)
 
 
+### Helena suggests we plot psi mean (per event) distribution as well. 
+setwd("~/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration/PSI")
 
-# ESR1<-read_tsv("../Download_060224/ESR1_PSI.tsv")
-# 
-# ESR1 %>%
-#   mutate(file_path="ESR1_PSI.tsv") %>%
-#   separate(file_path, into=c("gene", "file_end"), sep="_") %>%
-#   select(-file_end) %>%
-#   pivot_longer(cols=-c("Event", "gene"), names_to="Sample", values_to="PSI") %>%
-#   drop_na() %>% 
-  
+#One AS event type at a time, replace event abreviations, remove slice for anything thats not IR, CE.
+
+## IR 
+psi_scores<- read_tsv("IR_summary.tsv")
+
+psi_scores %>% 
+  group_by(Event) %>% 
+  summarize(average_psi = mean(PSI)) %>% 
+  ggplot(aes(x=average_psi))+
+  geom_histogram()+
+  theme_classic()+
+  ggtitle("Mean PSI distribution IR events")
+
+rm(psi_scores)
+
+## CE
+
+psi_scores<- read_tsv("CE_summary.tsv")
+
+psi_scores %>% 
+  group_by(Event) %>% 
+  summarize(average_psi = mean(PSI)) %>% 
+  ggplot(aes(x=average_psi))+
+  geom_histogram()+
+  theme_classic()+
+  ggtitle("Mean PSI distribution CE events")
+
+rm(psi_scores)
+## AA
+psi_scores<- read_tsv("AA_summary.tsv")
+
+psi_scores %>% 
+  group_by(Event) %>% 
+  summarize(average_psi = mean(PSI)) %>% 
+  ggplot(aes(x=average_psi))+
+  geom_histogram()+
+  theme_classic()+
+  ggtitle("Mean PSI distribution AA events")
+
+rm(psi_scores)
+## AD
+psi_scores<- read_tsv("AD_summary.tsv")
+
+psi_scores %>% 
+  group_by(Event) %>% 
+  summarize(average_psi = mean(PSI)) %>% 
+  ggplot(aes(x=average_psi))+
+  geom_histogram()+
+  theme_classic()+
+  ggtitle("Mean PSI distribution AD events")
+
+rm(psi_scores)
+
+#### AND MEDIAN PLOTS
+setwd("~/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration/PSI")
+
+#Make it a 4 panel figure
+library(gridExtra)
+library(tidyverse)
+
+## IR 
+psi_scores<- read_tsv("IR_summary.tsv")
+
+psi_scores %>% 
+  group_by(Event) %>% 
+  filter(n_distinct(PSI)>1) %>%
+  summarize(average_psi = median(PSI)) %>% 
+  write.table("IR_medians.tsv")
+
+rm(psi_scores)
+gc()
+## CE
+
+psi_scores<- read_tsv("CE_summary.tsv")
+
+psi_scores %>% 
+  select(Event, PSI) %>% 
+  group_by(Event) %>% 
+  filter(n_distinct(PSI)>1) %>% 
+  summarize(average_psi = median(PSI)) %>% 
+  write.table("CE_medians.tsv")
+
+rm(psi_scores)
+gc()
+
+## AA
+psi_scores<- read_tsv("AA_summary.tsv")
+
+psi_scores %>% 
+  group_by(Event) %>% 
+  summarize(average_psi = median(PSI)) %>% 
+  select(average_psi)%>% 
+  write.table("AA_medians.tsv")
+
+rm(psi_scores)
+## AD
+psi_scores<- read_tsv("AD_summary.tsv")
+
+psi_scores %>% 
+  group_by(Event) %>% 
+  summarize(average_psi = median(PSI)) %>% 
+  select(average_psi)%>% 
+  write.table("AD_medians.tsv")
+
+rm(psi_scores)
+
+#make figure
+IR_medians<- read.table("IR_medians.tsv")
+CE_medians<- read.table("CE_medians.tsv")
+AA_medians<- read.table("AA_medians.tsv")
+AD_medians<- read.table("AD_medians.tsv")
 
 
-psi_files
-setwd("~/Documents/PhD/Result_Exploration/")
-psi_scores<- read_tsv("PSI_summary.tsv")
+p1<-ggplot(IR_medians, aes(x=average_psi))+
+  geom_histogram()+
+  theme_classic()+
+  ggtitle("Intron Retention")+
+  labs(x="Median PSI per event", y="Counts")
 
-#distribution plots
+p2<-ggplot(CE_medians, aes(x=average_psi))+
+  geom_histogram()+
+  theme_classic()+
+  ggtitle("Cassette Exons")+
+  labs(x="Median PSI per event", y="Counts")
 
+p3<-ggplot(AA_medians,aes(x=average_psi))+
+  geom_histogram()+
+  theme_classic()+
+  ggtitle("Alternative Acceptors")+
+  labs(x="Median PSI per event", y="Counts")
 
-#how many genes have enough data?
+p4<-ggplot(AD_medians, aes(x=average_psi))+
+  geom_histogram()+
+  theme_classic()+
+  ggtitle("Alternative Donors")+
+  labs(x="Median PSI per event", y="Counts")
 
+grid.arrange(p1, p2, p3, p4, ncol=2)
 
+##########################################################################################################
 
+#Allele Frequency plots
+
+setwd("/home/mirjam/Documents/PhD/DetectSpliceVariant/Results/Result_Exploration")
+
+dbsnp <- read_tsv("germline_variants.tsv")
+
+frequent<-read_tsv("frequent_variants_180724.tsv", skip=1)
+
+#Take common data
+
+dbsnp %>% 
+  select(var_ID) %>% 
+  distinct(var_ID) %>% 
+  left_join(frequent, by = c("var_ID"="Location")) %>% 
+  rename("Location"="var_ID") %>% 
+  write_tsv("germline_genotypes.tsv")
+
+frequent %>% 
+  sample_n(252225) %>% 
+  write_tsv("somatic_subset_genotypes.tsv")
+
+rm(frequent)
+rm(dbsnp)
+gc()
+#restart the session too otherwise it doesnt want to work.
+
+germline <- read_tsv("germline_AF.tsv")
+somatic <- read_tsv("somatic_AF.tsv")
+
+germline %>% 
+  mutate(Variant_Type="germline")-> germ_temp
+
+somatic %>% 
+  mutate(Variant_Type="somatic")-> som_temp
+
+plot_data<- rbind(germ_temp, som_temp)
+
+library(viridis)
+library(hrbrthemes)
+library(gridExtra)
+
+p1= ggplot(data=plot_data, aes(x=Allele_Frequency_Observed, fill=Variant_Type)) +
+  geom_histogram(color="#e9ecef", binwidth=0.05, alpha=.4, position="identity") +
+  theme_classic()+
+  scale_fill_manual(values=c("#DAA520", "#404080")) +
+  labs(fill="")+
+  scale_y_log10()+
+  theme(legend.position = "none")
+
+p2 =ggplot(data = plot_data, aes(x = Allele_Frequency_Observed, fill = Variant_Type)) +
+  geom_density(color = "#e9ecef", alpha = 0.4, position = "identity") +
+  theme_classic() +
+  scale_fill_manual(values=c("#DAA520", "#404080")) +
+  #labs(fill = "")+
+  ylim(0, 200)
+
+grid.arrange(p1, p2, ncol=2)
