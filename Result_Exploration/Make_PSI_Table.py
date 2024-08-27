@@ -32,7 +32,7 @@ counter = 0
 with open(args.out, "w") as out:
     out.write("Gene\tEvent\tSample\tPSI\n")
     for file in files:
-        with open(args.folder+file, "r") as infile:
+        with open(args.folder+"/"+file, "r") as infile:
             counter += 1
             gene=file.split("_")[0]
             temp_dict[gene] = dict()

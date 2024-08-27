@@ -21,7 +21,7 @@ import os
 input_folder = sys.argv[1]
 files = os.listdir(input_folder)
 
-variant_file =sys.arv[2]
+variant_file =sys.argv[2]
 
 out=open(sys.argv[3], "w")
 

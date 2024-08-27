@@ -1,30 +1,33 @@
-# Make_PSI_Table.py
+# Genotype_AF.py
 # 27.03.24
 # Mirjam Müller
 #
-# To do an all genes allele frequency comparison between SWEGEN and SCANB, i need to have AF for all genes.
-# However, R refuses to read in all the genotype files. this will help with that.
+# Calculates the allele frequencies for a set of variants.
 #
 # imports
-import argparse
+import sys
+import os
 
-#argparse
-parser = argparse.ArgumentParser(prog='Make AF summary table',
-                                 usage='',
-                                 description="""Parses genotype output tables for each gene and puts AF into one table.""")
+input_folder = sys.argv[1]
+files = os.listdir(input_folder)
 
-parser.add_argument('--files', '-f', required=True,
-                    help="""file containing all the genotype table names""")
-parser.add_argument('--out', '-o', required=True,
-                    help="""output file.""")
+variant_file = sys.argv[2]
 
-args = parser.parse_args()
+outfile = sys.argv[3]
+
+locations=[]
+with open(variant_file, "r") as variants:
+    for line in variants:
+        if line.startswith("Location"):
+            #header
+            continue
+        locations.append(line.split("\t")[1])
 
 skipped=0
-with open(args.files, "r") as infile, open(args.out, "w") as out:
+with open(outfile, "w") as out:
     out.write("Location\tgene\tAllele_Frequency_Observed\tNumber_Samples\n")
-    for file in infile:
-        with open(file.strip("\n"), "r") as genotype:
+    for file in files:
+        with open(input_folder + file, "r") as genotype:
             for line in genotype:
                 if line.startswith("#"):
                     skipped+=1
@@ -39,28 +42,29 @@ with open(args.files, "r") as infile, open(args.out, "w") as out:
                     infostring, gene=line.split("\t")[0:2]
                     getypes=line.strip("\n").split("\t")[2:]
 
-                    counts={"0/0":0, "0/1":0, "1/1":0}
-                    for type in getypes:
-                        if type =="NE":
-                            #not expressed, move on.
-                            continue
-                        elif type=="ND":
-                            #filtered variant, move on
-                            continue
-                        elif type=="0/0":
-                            counts["0/0"]+=1
-                        elif type in ["1/1", "2/2", "3/3"]:
-                            counts["1/1"]+=1
-                        else:
-                            #heterozgous
-                            counts["0/1"]+=1
+                    if infostring in locations:
+                        counts={"0/0":0, "0/1":0, "1/1":0}
+                        for type in getypes:
+                            if type =="NE":
+                                #not expressed, move on.
+                                continue
+                            elif type=="ND":
+                                #filtered variant, move on
+                                continue
+                            elif type=="0/0":
+                                counts["0/0"]+=1
+                            elif type in ["1/1", "2/2", "3/3"]:
+                                counts["1/1"]+=1
+                            else:
+                                #heterozgous
+                                counts["0/1"]+=1
 
-                    #Now that we have the counts for this location, calculate observed allele frequency
-                    total=counts["1/1"]+counts["0/0"]+counts["0/1"]
-                    observed=(2*counts["1/1"]+counts["0/1"])/(2*total)
+                        #Now that we have the counts for this location, calculate observed allele frequency
+                        total=counts["1/1"]+counts["0/0"]+counts["0/1"]
+                        observed=(2*counts["1/1"]+counts["0/1"])/(2*total)
 
-                    #Now write it into output file
-                    out.write(infostring+"\t"+gene+"\t"+str(observed)+"\t"+str(total)+"\n")
+                        #Now write it into output file
+                        out.write(infostring+"\t"+gene+"\t"+str(observed)+"\t"+str(total)+"\n")
 
 
 print(skipped)

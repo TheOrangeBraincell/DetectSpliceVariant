@@ -701,7 +701,6 @@ dbsnp <- read_tsv("germline_variants.tsv")
 frequent<-read_tsv("frequent_variants_180724.tsv", skip=1)
 
 #Take common data
-
 dbsnp %>% 
   select(var_ID) %>% 
   distinct(var_ID) %>% 

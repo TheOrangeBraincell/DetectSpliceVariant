@@ -23,6 +23,11 @@ genotype_folder = sys.argv[2]
 
 genotype_files = os.listdir(genotype_folder)
 
+outfile =sys.argv[3]
+
+if len(sys.argv)>4:
+    threshold = int(sys.argv[4])
+
 # Read in Swegen information
 swegen_dict=dict()
 with open(swegen, "r") as swefile:
@@ -55,14 +60,14 @@ with open(swegen, "r") as swefile:
 print("Read in Swegen file.")
 
 #open output file
-out = open("swegen_scanb345_variants.tsv", "w")
+out = open(outfile, "w")
 #Write column names
 out.write("chrom\tposition\tref\talt_SW\talt_SC\tAF_SW\tAF_SC\tMajority_VarAllele\n")
 
 # Now we read in the genotype files and save those variants that have an equivalent in SweGen.
 scanb_dict=dict()
 for file in genotype_files:
-    with open("../../Results_170524/Genotypes_in_Exons/"+ file, "r") as genotypes:
+    with open(sys.argv[2]+ file, "r") as genotypes:
         for line in genotypes:
             if line.startswith("Location"):
                 #header
@@ -87,9 +92,15 @@ for file in genotype_files:
                         homA+=1
                     elif gt in ["0/1", "1/2", "0/2", "1/3", "2/3", "0/3"]:
                         het+=1
-                if homR + het+ homA <345:
-                    stop=True
-                    continue    
+                if len(sys.argv)>4:
+                    if homR + het+ homA < threshold:
+                        stop=True
+                        continue    
+                
+                if homR+het+homA==0:
+                    #Not possible to calculate allele frequency as there is no genotype passing read depth or filtering criteria. 
+                    continue
+                # Calculate allele frequency
                 AF = (het+2*homA)/(2*(het+homA+homR))
                 if homA > het:
                     majority = "homA"
