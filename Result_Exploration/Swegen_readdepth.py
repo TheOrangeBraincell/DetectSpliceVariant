@@ -37,23 +37,26 @@ with open(variant_file, "r") as variants:
         locations.append(line.split("\t")[0]+"_"+line.split("\t")[1])
         swegen_dict[line.split("\t")[0]+"_"+line.split("\t")[1]]=line.strip("\n")
 
+print(len(locations))
+counter=0
 
 for file in files:
-    with open(file, "r") as read_depth:
-        for line in file:
-            if line.startswith("\home"):
+    with open(input_folder+file, "r") as read_depth:
+        for line in read_depth:
+            if "mirjam" in line:
                 #header
                 continue
             
             if line.split("\t")[0]+"_"+line.split("\t")[2] in locations:
+                counter+=1
+                print(counter, end="\r")
                 sum=0
-                for i in line.split("\t")[4:]:
+                for i in line.strip("\n").split("\t")[6:]:
                     sum+=int(i)
                 
-                mean=sum/len(line.split("\t")[4:])
-
+                mean=round(sum/len(line.split("\t")[4:]), ndigits=2)
+                
                 out.write(swegen_dict[line.split("\t")[0]+"_"+line.split("\t")[2]]+"\t"+str(mean)+"\n")
 
 
-
-            
+out.close()
